@@ -34,7 +34,7 @@ export class Rocket {
       this.x += step;
     } else if (input.keyDir !== 0) {
       const dir = this.reversed ? -input.keyDir : input.keyDir;
-      this.x += dir * ROCKET.maxSpeed * dt;
+      this.x += dir * ROCKET.keySpeed * dt;
     }
     this.x = Math.max(0, Math.min(MAX_X, this.x));
   }

@@ -4,7 +4,7 @@
 export const PALETTE = {
   bg: '#1B1F3B', // navy: sky, letterbox, craters, text on cream
   rocket: '#F2E9DC', // cream: player, chickens, HUD text
-  detail: '#FF6B35', // orange: danger, flame, stars, warnings
+  detail: '#ff6a34', // orange: danger, flame, stars, warnings
 } as const;
 
 // Logical resolution; everything is drawn at this size and scaled up by an integer.
@@ -18,8 +18,9 @@ export const ROCKET = {
   w: 9,
   h: 12,
   y: 112,
-  maxSpeed: 140, // px/s
-  follow: 0.15, // fraction of the gap to the finger closed per 1/60 s
+  maxSpeed: 300, // px/s when following a finger
+  follow: 0.35, // fraction of the gap to the finger closed per 1/60 s
+  keySpeed: 140, // px/s with the arrow keys
   hitboxInset: 1,
   flameToggleFrames: 4,
 } as const;
@@ -55,14 +56,12 @@ export const ASTEROID = {
   variants: [3, 7, 11, 19, 23, 31], // seeds for the generated sprites
   // Warning visuals
   blinkFrames: 8,
-  dashLength: 3,
-  dashEvery: 6,
-  chevrons: 3,
-  chevronSpacing: 8,
+  blinkFramesUrgent: 4, // faster blink for the last part of the warning
+  urgentAt: 0.6, // share of the warning time before the blink speeds up
 } as const;
 
 export const NEAR_MISS = {
-  margin: 3, // px between the asteroid's hit circle and the rocket's hitbox
+  margin: 6, // px between the asteroid's hit circle and the rocket's hitbox (the drawn rock reaches ~2 px past the hit circle)
   points: 50,
   sparks: 10,
 } as const;

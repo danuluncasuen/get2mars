@@ -39,18 +39,8 @@ export function makeSprite(map: SpriteMap, colors: ColorKey, flip = false): HTML
   return canvas;
 }
 
-export const WARNING_MAP: SpriteMap = [
-  'XXXXXXX',
-  'X..X..X',
-  'X..X..X',
-  'X..X..X',
-  'X..X..X',
-  'X.....X',
-  'X..X..X',
-  'XXXXXXX',
-];
-
-export const CHEVRON_MAP: SpriteMap = ['X...X', '.X.X.', '..X..'];
+// A chunky "!": thick bar tapering to a point, gap, square dot.
+export const WARNING_MAP: SpriteMap = ['XXX', 'XXX', 'XXX', 'XXX', 'XXX', '.X.', '...', 'XXX', 'XXX'];
 
 export const DETAIL_COLORS: ColorKey = { X: PALETTE.detail };
 

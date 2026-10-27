@@ -108,19 +108,20 @@ Generate once per variant at startup into an offscreen canvas (make 4–6 varian
 
 Use a small seeded random (e.g. `seed = (seed * 9301 + 49297) % 233280`) so asteroids look the same on every run.
 
-**Warning icon — 7 × 8** (orange)
+**Warning icon — 3 × 9** (orange)
 ```
-XXXXXXX
-X..X..X
-X..X..X
-X..X..X
-X..X..X
-X.....X
-X..X..X
-XXXXXXX
+XXX
+XXX
+XXX
+XXX
+XXX
+.X.
+...
+XXX
+XXX
 ```
 
-**Chevron — 5 × 3** (orange)
+**Chevron — 5 × 3** (orange, no longer used)
 ```
 X...X
 .X.X.
@@ -188,11 +189,11 @@ TITLE ──tap──▶ PLAYING ──fatal hit──▶ DYING (1.2 s) ──�
 | Vertical position | Fixed, top edge at y = 112 |
 | Horizontal range | x ∈ [0, 63] (clamped) |
 | Hitbox | 7 × 10, inset 1 px on each side (forgiving) |
-| Max speed | 140 px/s |
+| Max speed | 300 px/s following a finger, 140 px/s with arrow keys |
 
 ### Controls
 - **Drag anywhere** on the screen. The rocket's target x is the finger's x (converted to logical pixels), centered on the rocket.
-- The rocket moves toward the target at up to max speed (or lerp with factor about 0.15 per frame, capped at max speed).
+- The rocket eases toward the target, closing 35% of the gap per frame, capped at max speed. It catches a 30 px finger move in about 170 ms (was 400 ms at 0.15 and 140 px/s, which felt laggy).
 - When the finger lifts, the rocket stays where it is.
 - Also support mouse drag and arrow keys for desktop testing.
 
@@ -221,10 +222,8 @@ TITLE ──tap──▶ PLAYING ──fatal hit──▶ DYING (1.2 s) ──�
 | On hit | Fatal → DYING |
 
 **Warning phase** (before the asteroid appears):
-- Two dashed vertical orange lines mark the lane edges (`cx ± r`), from y = 16 to the bottom. Dashes 3 px long every 6 px, scrolling down.
-- The warning icon blinks at the top of the lane (on and off every 8 frames).
-- Three chevrons scroll down the lane continuously.
-- Optional: a short low-pitch "beep" (v2, when sound arrives).
+- Only the warning icon, at the top of the lane (y = 18), so the screen stays clean. It blinks every 8 frames, then every 4 frames for the last 40% of the warning.
+- Two quick blips play when the warning appears.
 
 **Fall phase:**
 - The asteroid spawns above the screen (y = −30) and falls straight down the warned lane.
@@ -268,7 +267,7 @@ TITLE ──tap──▶ PLAYING ──fatal hit──▶ DYING (1.2 s) ──�
 | Event | Effect |
 |---|---|
 | Always | Flame flicker, star parallax |
-| Asteroid warning | Dashed lane, blinking icon, chevrons |
+| Asteroid warning | Blinking "!" at the top of the lane, faster near the drop, plus two blips |
 | Asteroid passing nearby | ±1 px screen shake |
 | Near miss | "+50" orange popup that rises 15 px over about 0.8 s and blinks out. 10-particle cream and orange spark burst at the rocket's side |
 | Chicken hit | Feather burst, chicken tumbles away, rocket shake, HUD inverts, swap icon, dizzy pixels |
@@ -297,7 +296,7 @@ The first asteroid comes 2 s into a run and the first chicken at 4 s, so players
 ## 9. Scoring and saving
 
 - **Distance:** +10 points per second survived (show as an integer, 4 digits, padded with zeros, max 9999 shown).
-- **Near miss:** +50 when an asteroid overlaps the rocket's rows (y 112–124) and the horizontal gap between the asteroid's edge and the rocket's hitbox is ≤ 3 px, without touching. Max once per asteroid.
+- **Near miss:** +50 when an asteroid overlaps the rocket's rows (y 112–124) and the horizontal gap between the asteroid's edge and the rocket's hitbox is ≤ 6 px, without touching (the drawn rock reaches about 2 px past its hit circle, so that is a visible gap of up to about 4 px). Max once per asteroid.
 - **Best score:** saved in `localStorage` under `get2mars.best`. Wrap reads and writes in try/catch, and fall back to 0.
 
 ---
@@ -362,7 +361,7 @@ rocket-dodge/
 ### Collision helpers
 - AABB vs AABB for rocket vs chicken.
 - Circle vs AABB for rocket vs asteroid: clamp the circle center to the box, compare the distance to the radius.
-- Near miss: the same check with radius + 3 that does *not* collide with the real radius.
+- Near miss: the same check with radius + 6 that does *not* collide with the real radius.
 
 ### Tuning
 Put every number from sections 4–9 in `config.ts`. Optional: a `?debug` URL flag that draws hitboxes and shows the current difficulty values.
