@@ -16,6 +16,7 @@ import {
   SCORE,
   SCREENS,
   STAR_TRAIL,
+  TESTING,
   UNLOCK,
   UNLOCK_NAMES,
   VIEW,
@@ -130,7 +131,7 @@ export class Game {
   }
 
   private unlocked(feature: keyof typeof UNLOCK): boolean {
-    return this.time >= UNLOCK[feature];
+    return this.time >= UNLOCK[feature] * TESTING.unlockScale;
   }
 
   update(dt: number): void {

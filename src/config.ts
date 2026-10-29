@@ -20,7 +20,7 @@ export const ROCKET = {
   startY: 112, // top of the sprite at the start of a run
   yMin: 72, // the rocket flies anywhere in the lower half
   yMax: 124,
-  fingerOffset: 16, // the rocket sits this far above the finger so the thumb doesn't hide it
+  fingerOffset: 0, // px the rocket's center sits above the finger (8 and 16 both felt too far)
   maxSpeed: 300, // px/s when following a finger
   follow: 0.35, // fraction of the gap to the finger closed per 1/60 s
   keySpeed: 140, // px/s with the arrow keys
@@ -88,12 +88,13 @@ export interface DifficultyRow {
 }
 
 // Values are interpolated between rows; counts are rounded down.
+// Asteroid intervals are ~38% longer than the original spec, leaving room to ramp up later.
 export const DIFFICULTY: readonly DifficultyRow[] = [
-  { t: 0, asteroidInterval: 4.0, warnTime: 1.5, fallSpeed: 190, maxAsteroids: 1, chickenInterval: 3.0, flockMin: 1, flockMax: 1, chickenSpeed: 36 },
-  { t: 30, asteroidInterval: 3.2, warnTime: 1.3, fallSpeed: 200, maxAsteroids: 1, chickenInterval: 2.5, flockMin: 1, flockMax: 3, chickenSpeed: 42 },
-  { t: 60, asteroidInterval: 2.6, warnTime: 1.1, fallSpeed: 215, maxAsteroids: 1, chickenInterval: 2.0, flockMin: 3, flockMax: 3, chickenSpeed: 48 },
-  { t: 90, asteroidInterval: 2.2, warnTime: 0.95, fallSpeed: 225, maxAsteroids: 2, chickenInterval: 1.8, flockMin: 3, flockMax: 5, chickenSpeed: 54 },
-  { t: 120, asteroidInterval: 1.8, warnTime: 0.8, fallSpeed: 240, maxAsteroids: 2, chickenInterval: 1.5, flockMin: 5, flockMax: 5, chickenSpeed: 60 },
+  { t: 0, asteroidInterval: 5.5, warnTime: 1.5, fallSpeed: 190, maxAsteroids: 1, chickenInterval: 3.0, flockMin: 1, flockMax: 1, chickenSpeed: 36 },
+  { t: 30, asteroidInterval: 4.4, warnTime: 1.3, fallSpeed: 200, maxAsteroids: 1, chickenInterval: 2.5, flockMin: 1, flockMax: 3, chickenSpeed: 42 },
+  { t: 60, asteroidInterval: 3.6, warnTime: 1.1, fallSpeed: 215, maxAsteroids: 1, chickenInterval: 2.0, flockMin: 3, flockMax: 3, chickenSpeed: 48 },
+  { t: 90, asteroidInterval: 3.0, warnTime: 0.95, fallSpeed: 225, maxAsteroids: 2, chickenInterval: 1.8, flockMin: 3, flockMax: 5, chickenSpeed: 54 },
+  { t: 120, asteroidInterval: 2.5, warnTime: 0.8, fallSpeed: 240, maxAsteroids: 2, chickenInterval: 1.5, flockMin: 5, flockMax: 5, chickenSpeed: 60 },
 ];
 
 export const PARTICLES = {
@@ -144,6 +145,12 @@ export const REVERSE = {
   duration: 3,
   dizzyPixels: 3,
 } as const;
+
+// Testing aid. unlockScale multiplies every UNLOCK time: 1 for release, lower brings
+// everything sooner (0.2: stars at 2 s, eggs at 18 s). Anything but 1 shows "TEST" on the title.
+export const TESTING: { readonly unlockScale: number } = {
+  unlockScale: 0.2,
+};
 
 // New threats and toys arrive one at a time, so every run reveals more as it goes.
 export const UNLOCK = {
@@ -226,7 +233,7 @@ export const YOLK = {
 } as const;
 
 export const EGGS = {
-  max: 3, // a full set is fatal
+  max: 5, // strike eggs; a full set is fatal
   decay: 8, // seconds without a hit to empty one egg
   immunity: 0.5, // no new chicken hits for this long after one
   doomTime: 0.5, // eggs blink this long before the rocket explodes

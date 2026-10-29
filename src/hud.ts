@@ -8,9 +8,10 @@ const EGG_OFF_REVERSED = makeSprite(EGG_EMPTY, { X: PALETTE.bg });
 const SWAP = makeSprite(SWAP_MAP, { X: PALETTE.detail });
 const FEATHER = makeSprite(FEATHER_MAP, { X: PALETTE.detail });
 
-const SWAP_X = 40; // between the score and the eggs
-const EGG_X = 51;
-const EGG_STEP = 7;
+// Score fills x 3–34; the effect icon and five eggs share the rest.
+const SWAP_X = 37;
+const EGG_X = 46; // eggs are 4 px wide with a 1 px gap, ending at x 69
+const EGG_STEP = 5;
 const ICON_Y = 5;
 
 export interface HudState {

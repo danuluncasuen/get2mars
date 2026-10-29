@@ -192,7 +192,7 @@ TITLE ──tap──▶ PLAYING ──fatal hit──▶ DYING (1.2 s) ──�
 | Max speed | 300 px/s following a finger, 140 px/s with arrow keys |
 
 ### Controls
-- **Drag anywhere** on the screen. The rocket's target is the finger's position (converted to logical pixels), with the rocket's center 16 px **above** the finger so the thumb doesn't hide it.
+- **Drag anywhere** on the screen. The rocket's target is the finger's position (converted to logical pixels), with the rocket centered on the finger (an offset above it, 16 px then 8 px, felt too far) so the thumb doesn't hide it.
 - Up and down are limited to the lower half, so asteroids still need a sideways dodge and the warnings stay clear.
 - The rocket eases toward the target, closing 35% of the gap per frame, capped at max speed in any direction. It catches a 30 px finger move in about 170 ms (was 400 ms at 0.15 and 140 px/s, which felt laggy).
 - When the finger lifts, the rocket stays where it is.
@@ -260,8 +260,8 @@ TITLE ──tap──▶ PLAYING ──fatal hit──▶ DYING (1.2 s) ──�
 
 ## 6. Eggs (chicken strike counter)
 
-- The HUD shows 3 egg slots. Each chicken hit fills one.
-- **3 filled eggs = fatal**, exactly like an asteroid hit (death cause: chicken → "FOWL PLAY").
+- The HUD shows 5 egg slots (4 px wide, 1 px apart, x 46–69). Each chicken hit fills one.
+- **5 filled eggs = fatal**, exactly like an asteroid hit (death cause: chicken → "FOWL PLAY").
 - **Recovery:** if 8 s pass without a chicken hit, one egg empties. This repeats every 8 s until all are empty. Any hit resets the 8 s timer.
 - When the third egg fills: the eggs blink for 0.5 s, then the rocket explodes.
 
@@ -288,11 +288,11 @@ Driven by elapsed run time. Interpolate between rows.
 
 | Time | Asteroid interval | Warning time | Fall speed | Chicken interval | Flock size | Chicken speed | Max asteroids at once |
 |---|---|---|---|---|---|---|---|
-| 0 s | 4.0 s | 1.5 s | 190 | 3.0 s | 1 | 36 | 1 |
-| 30 s | 3.2 s | 1.3 s | 200 | 2.5 s | 1–3 | 42 | 1 |
-| 60 s | 2.6 s | 1.1 s | 215 | 2.0 s | 3 | 48 | 1 |
-| 90 s | 2.2 s | 0.95 s | 225 | 1.8 s | 3–5 | 54 | 2 |
-| 120 s+ | 1.8 s | 0.8 s | 240 | 1.5 s | 5 | 60 | 2 |
+| 0 s | 5.5 s | 1.5 s | 190 | 3.0 s | 1 | 36 | 1 |
+| 30 s | 4.4 s | 1.3 s | 200 | 2.5 s | 1–3 | 42 | 1 |
+| 60 s | 3.6 s | 1.1 s | 215 | 2.0 s | 3 | 48 | 1 |
+| 90 s | 3.0 s | 0.95 s | 225 | 1.8 s | 3–5 | 54 | 2 |
+| 120 s+ | 2.5 s | 0.8 s | 240 | 1.5 s | 5 | 60 | 2 |
 
 The first asteroid comes 2 s into a run and the first chicken at 4 s, so players get a moment to settle in.
 

@@ -1,4 +1,4 @@
-import { HUD, MUTE_BUTTON, PALETTE, ROCKET, SCORE, SCREENS, VIEW } from './config';
+import { HUD, MUTE_BUTTON, PALETTE, ROCKET, SCORE, SCREENS, TESTING, VIEW } from './config';
 import type { DeathCause } from './game';
 import { makeSprite, ROCKET_COLORS, ROCKET_MAP, SPEAKER_MAP, SPEAKER_MUTED_MAP } from './sprites';
 
@@ -25,6 +25,13 @@ const blinkOn = (time: number) => Math.floor(time / SCREENS.blinkTime) % 2 === 0
 // time: seconds the screen has been showing.
 export function renderTitle(ctx: CanvasRenderingContext2D, time: number, best: number, muted: boolean): void {
   renderMute(ctx, muted);
+  // Flags a build with test timings so it doesn't ship by accident.
+  if (TESTING.unlockScale !== 1) {
+    ctx.font = HUD.font;
+    ctx.textAlign = 'left';
+    ctx.fillStyle = PALETTE.detail;
+    ctx.fillText('TEST', 3, 11);
+  }
   text(ctx, SCREENS.title[0], 30, PALETTE.rocket);
   text(ctx, SCREENS.title[1], 42, PALETTE.detail);
 
