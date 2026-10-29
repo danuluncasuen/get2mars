@@ -271,7 +271,7 @@ export class Game {
     }
     this.shake.add(DEATH.shake, DEATH.shakeTime);
     this.sound.play('shieldPop');
-    buzz(40);
+    buzz('shieldPop');
   }
 
   private bounceChicken(c: Chicken): void {
@@ -303,7 +303,7 @@ export class Game {
     this.wobbleTimer = REVERSE.shakeTime;
 
     this.sound.play('chicken');
-    buzz(30);
+    buzz('chicken');
 
     if (this.eggs >= EGGS.max) {
       this.sound.play('doom');
@@ -318,7 +318,7 @@ export class Game {
   private nearMiss(side: number): void {
     this.score += NEAR_MISS.points;
     this.sound.play('nearMiss');
-    buzz(10);
+    buzz('nearMiss');
     const sx = side < 0 ? this.rocket.x : this.rocket.x + ROCKET.w - 1;
     const sy = this.rocket.y + 6;
     for (let i = 0; i < NEAR_MISS.sparks; i++) {
@@ -341,7 +341,7 @@ export class Game {
     this.shake.add(DEATH.shake, DEATH.shakeTime);
     this.sound.stopMusic();
     this.sound.play('crash');
-    buzz([60, 40, 120]);
+    buzz('crash');
     // The rocket breaks into its own pixels.
     const x0 = Math.round(this.rocket.x);
     ROCKET_MAP.forEach((row, j) => {

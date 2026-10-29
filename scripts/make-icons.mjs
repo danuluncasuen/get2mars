@@ -1,6 +1,6 @@
 // Renders the home-screen icons from the rocket pixel map in src/sprites.ts.
-// Run with `npm run icons`; writes PNGs to public/icons/.
-import { readFileSync, writeFileSync } from 'node:fs';
+// Run with `npm run icons`; writes PNGs to public/icons/ and the iOS app icon.
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { deflateSync } from 'node:zlib';
 
 const NAVY = [0x1b, 0x1f, 0x3b];
@@ -79,4 +79,11 @@ for (const [name, size, fill] of [
 ]) {
   writeFileSync(new URL(name, out), icon(size, fill));
   console.log('wrote', name);
+}
+
+// The iOS app icon (1024 px, no transparency; iOS rounds the corners itself).
+const iosIcon = new URL('../ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png', import.meta.url);
+if (existsSync(iosIcon)) {
+  writeFileSync(iosIcon, icon(1024, 0.6));
+  console.log('wrote ios AppIcon');
 }

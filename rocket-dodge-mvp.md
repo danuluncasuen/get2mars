@@ -323,6 +323,17 @@ The first asteroid comes 2 s into a run and the first chicken at 4 s, so players
 - Runs in mobile Safari and Chrome. Add a web app manifest so it can be added to the home screen and run fullscreen.
 - Later (v2): wrap with Capacitor for the App Store and Play Store.
 
+### iOS app (Capacitor 8)
+- The Vite build (`dist/`) is copied into a native Xcode project in `ios/` and runs in WKWebView. No game code is iOS-specific except `src/haptics.ts`.
+- `capacitor.config.ts`: bundle ID `com.get2mars.app` (change it to match the App ID in your Apple Developer account), navy background, no scrolling, the page handles safe areas itself.
+- Native setup: iPhone only, portrait only, full screen, status bar hidden, plain navy launch screen, app icon from `npm run icons`.
+- Haptics: `@capacitor/haptics` on iOS (light: near miss, medium: chicken, heavy: shield pop, error notification: crash). The web version falls back to the Vibration API.
+- Swift Package Manager, no CocoaPods.
+- Workflow:
+  - `npm run ios`: build the game and copy it into the Xcode project. Run it after every web change.
+  - `npm run ios:open`: same, then open Xcode. Pick your phone or a simulator and press Run.
+- First run on your own iPhone: in Xcode, select the App target → Signing & Capabilities → choose your team (a free Apple ID works for 7-day installs; TestFlight and the App Store need the $99/year program). On the phone, turn on Developer Mode when asked.
+
 ### Game loop
 - `requestAnimationFrame`, **fixed timestep** of 1/60 s with an accumulator (update may run 0–N times per frame, then render once).
 - Clamp large frame gaps (tab switches) to 0.25 s. Pause automatically on `visibilitychange`.
@@ -428,5 +439,5 @@ Put every number from sections 4–9 in `config.ts`. Optional: a `?debug` URL fl
 - Palette changes as you progress (unlock new three-color palettes).
 - Dithered asteroid style as a palette or level variant.
 - Online leaderboards, achievements (Game Center via Capacitor).
-- App Store and Play Store builds via Capacitor (next).
+- Play Store build (the Capacitor Android platform). TestFlight and App Store submission for iOS.
 - A bitmap font to keep text strictly within the palette.
