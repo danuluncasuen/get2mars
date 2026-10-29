@@ -1,36 +1,49 @@
 import { Capacitor } from '@capacitor/core';
-import { Haptics, ImpactStyle, NotificationType } from '@capacitor/haptics';
+import { Haptics, ImpactStyle } from '@capacitor/haptics';
 
-export type BuzzKind = 'nearMiss' | 'chicken' | 'shieldPop' | 'crash';
+export type BuzzKind = 'star' | 'nearMiss' | 'chicken' | 'egg' | 'shieldPop' | 'crash';
+
+// Native feel, softest first. 'selection' is the tiny tick iOS uses for pickers.
+const NATIVE: Record<BuzzKind, 'selection' | ImpactStyle> = {
+  star: 'selection',
+  nearMiss: 'selection',
+  chicken: ImpactStyle.Light,
+  egg: ImpactStyle.Light,
+  shieldPop: ImpactStyle.Medium,
+  crash: ImpactStyle.Heavy,
+};
 
 // Web fallback in ms: the Vibration API works on Android, not in iOS Safari (it has none).
-const WEB_PATTERNS: Record<BuzzKind, number | number[]> = {
-  nearMiss: 10,
-  chicken: 30,
-  shieldPop: 40,
-  crash: [60, 40, 120],
+const WEB: Record<BuzzKind, number> = {
+  star: 5,
+  nearMiss: 8,
+  chicken: 15,
+  egg: 15,
+  shieldPop: 25,
+  crash: 50,
 };
 
-const IMPACTS: Record<Exclude<BuzzKind, 'crash'>, ImpactStyle> = {
-  nearMiss: ImpactStyle.Light,
-  chicken: ImpactStyle.Medium,
-  shieldPop: ImpactStyle.Heavy,
-};
+// Back-to-back buzzes blur into a rattle, so drop any that come too soon after the last one.
+const GAP_MS = 90;
 
 const native = Capacitor.isNativePlatform();
+// The selection generator has to be started once before it can tick.
+if (native) Haptics.selectionStart().catch(() => {});
+let last = -Infinity;
 
 // Short haptic on game events: the Taptic Engine in the iOS app, vibration on the web.
 export function buzz(kind: BuzzKind): void {
+  const now = performance.now();
+  if (kind !== 'crash' && now - last < GAP_MS) return;
+  last = now;
   if (native) {
-    const done =
-      kind === 'crash'
-        ? Haptics.notification({ type: NotificationType.Error })
-        : Haptics.impact({ style: IMPACTS[kind] });
+    const style = NATIVE[kind];
+    const done = style === 'selection' ? Haptics.selectionChanged() : Haptics.impact({ style });
     done.catch(() => {});
     return;
   }
   try {
-    navigator.vibrate?.(WEB_PATTERNS[kind]);
+    navigator.vibrate?.(WEB[kind]);
   } catch {
     // No vibration on this device.
   }

@@ -30,7 +30,7 @@ export class AsteroidSpawner {
     if (this.timer > 0) return [];
 
     // Only rocks that can still reach the rocket limit new spawns.
-    const threats = active.filter((a) => !a.dead && a.centerY < ROCKET.y + ROCKET.h);
+    const threats = active.filter((a) => !a.dead && a.centerY < ROCKET.yMax + ROCKET.h);
     const room = d.maxAsteroids - threats.length;
     if (room <= 0) {
       this.timer = ASTEROID.retryDelay;

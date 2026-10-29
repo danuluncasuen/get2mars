@@ -1,11 +1,13 @@
 import type { Display } from './display';
 
-// Tracks where the player wants the rocket: a finger/mouse x, or held arrow keys.
+// Tracks where the player wants the rocket: a finger/mouse position, or held arrow keys.
 export class Input {
-  // Logical x of the finger while dragging, otherwise null.
+  // Logical position of the finger while dragging, otherwise null.
   pointerX: number | null = null;
-  // -1, 0 or 1 from the arrow keys.
+  pointerY: number | null = null;
+  // -1, 0 or 1 from the arrow keys: left/right and up/down.
   keyDir = 0;
+  keyDirY = 0;
   // Logical position of the latest unread tap; keyboard taps have no position.
   private tap: { x: number; y: number } | null = null;
   private muteKey = false;
@@ -13,7 +15,9 @@ export class Input {
 
   constructor(target: HTMLElement, display: Display) {
     const move = (e: PointerEvent) => {
-      this.pointerX = display.toLogical(e.clientX, e.clientY).x;
+      const p = display.toLogical(e.clientX, e.clientY);
+      this.pointerX = p.x;
+      this.pointerY = p.y;
     };
     target.addEventListener('pointerdown', (e) => {
       target.setPointerCapture(e.pointerId);
@@ -25,13 +29,14 @@ export class Input {
     });
     const release = () => {
       this.pointerX = null;
+      this.pointerY = null;
     };
     target.addEventListener('pointerup', release);
     target.addEventListener('pointercancel', release);
     target.addEventListener('contextmenu', (e) => e.preventDefault());
 
     window.addEventListener('keydown', (e) => {
-      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      if (e.key.startsWith('Arrow')) {
         this.keys.add(e.key);
         e.preventDefault();
       }
@@ -46,6 +51,7 @@ export class Input {
     window.addEventListener('blur', () => {
       this.keys.clear();
       this.pointerX = null;
+      this.pointerY = null;
       this.updateKeyDir();
     });
   }
@@ -66,5 +72,6 @@ export class Input {
 
   private updateKeyDir(): void {
     this.keyDir = (this.keys.has('ArrowRight') ? 1 : 0) - (this.keys.has('ArrowLeft') ? 1 : 0);
+    this.keyDirY = (this.keys.has('ArrowDown') ? 1 : 0) - (this.keys.has('ArrowUp') ? 1 : 0);
   }
 }

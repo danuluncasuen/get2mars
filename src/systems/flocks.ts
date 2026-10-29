@@ -1,4 +1,4 @@
-import { CHICKEN, ROCKET, VIEW } from '../config';
+import { BOUNCER, CHICKEN, DIVER, EGG_DROP, ROCKET, VIEW } from '../config';
 import { Chicken } from '../entities/chicken';
 import type { Difficulty } from './difficulty';
 
@@ -15,15 +15,16 @@ export class FlockSpawner {
     this.timer = CHICKEN.firstSpawn;
   }
 
-  // rocketX: where the rocket is now, so some flocks can dive at it.
-  update(dt: number, d: Difficulty, rocketX: number): Chicken[] {
+  // rocketX/rocketY: where the rocket is now, so some flocks can dive at it.
+  // bouncers / eggLayers: whether those kinds are unlocked yet.
+  update(dt: number, d: Difficulty, rocketX: number, rocketY: number, bouncers: boolean, eggLayers: boolean): Chicken[] {
     this.timer -= dt;
     if (this.timer > 0) return [];
     this.timer = d.chickenInterval;
 
     const speed = d.chickenSpeed * (1 + (Math.random() * 2 - 1) * CHICKEN.speedJitter);
     // Pick where the leader crosses the rocket's row, then trace back to where it enters the screen.
-    const crossY = ROCKET.y + ROCKET.h / 2 - CHICKEN.h / 2;
+    const crossY = rocketY + ROCKET.h / 2 - CHICKEN.h / 2;
     const crossX =
       Math.random() < CHICKEN.aimChance
         ? rocketX + ROCKET.w / 2 - CHICKEN.w / 2 + (Math.random() * 2 - 1) * 4
@@ -46,16 +47,38 @@ export class FlockSpawner {
     const len = Math.hypot(vx, vy);
     const ux = vx / len;
     const uy = vy / len;
-    const flock: Chicken[] = [new Chicken(leaderX, leaderY, vx, vy)];
+    const egg = () => ({ carriesEgg: eggLayers && Math.random() < EGG_DROP.layerChance });
+    // A bouncer flies alone and turns back at the edges.
+    if (bouncers && Math.random() < BOUNCER.chance) {
+      return [new Chicken(leaderX, leaderY, vx, vy, { bounces: BOUNCER.bounces, ...egg() })];
+    }
+    const flock: Chicken[] = [new Chicken(leaderX, leaderY, vx, vy, egg())];
     const rows = (flockSize(d) - 1) / 2;
     for (let k = 1; k <= rows; k++) {
       const bx = leaderX - k * CHICKEN.trail * ux;
       const by = leaderY - k * CHICKEN.trail * uy;
       const sx = -uy * k * CHICKEN.spread;
       const sy = ux * k * CHICKEN.spread;
-      flock.push(new Chicken(bx + sx, by + sy, vx, vy));
-      flock.push(new Chicken(bx - sx, by - sy, vx, vy));
+      flock.push(new Chicken(bx + sx, by + sy, vx, vy, egg()));
+      flock.push(new Chicken(bx - sx, by - sy, vx, vy, egg()));
     }
     return flock;
+  }
+}
+
+export class DiverSpawner {
+  private timer = 0;
+
+  reset(): void {
+    this.timer = 0;
+  }
+
+  // Only runs once divers are unlocked; the first one comes right away.
+  update(dt: number, eggLayers: boolean): Chicken | null {
+    this.timer -= dt;
+    if (this.timer > 0) return null;
+    this.timer = DIVER.intervalMin + Math.random() * (DIVER.intervalMax - DIVER.intervalMin);
+    const x = 4 + Math.random() * (VIEW.w - CHICKEN.w - 8);
+    return Chicken.diver(Math.round(x), eggLayers && Math.random() < EGG_DROP.layerChance);
   }
 }

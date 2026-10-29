@@ -186,25 +186,30 @@ TITLE ──tap──▶ PLAYING ──fatal hit──▶ DYING (1.2 s) ──�
 | Property | Value |
 |---|---|
 | Size | 9 × 12 |
-| Vertical position | Fixed, top edge at y = 112 |
+| Vertical position | Free within the lower half: top edge y ∈ [72, 124], starting at 112 |
 | Horizontal range | x ∈ [0, 63] (clamped) |
 | Hitbox | 7 × 10, inset 1 px on each side (forgiving) |
 | Max speed | 300 px/s following a finger, 140 px/s with arrow keys |
 
 ### Controls
-- **Drag anywhere** on the screen. The rocket's target x is the finger's x (converted to logical pixels), centered on the rocket.
-- The rocket eases toward the target, closing 35% of the gap per frame, capped at max speed. It catches a 30 px finger move in about 170 ms (was 400 ms at 0.15 and 140 px/s, which felt laggy).
+- **Drag anywhere** on the screen. The rocket's target is the finger's position (converted to logical pixels), with the rocket's center 16 px **above** the finger so the thumb doesn't hide it.
+- Up and down are limited to the lower half, so asteroids still need a sideways dodge and the warnings stay clear.
+- The rocket eases toward the target, closing 35% of the gap per frame, capped at max speed in any direction. It catches a 30 px finger move in about 170 ms (was 400 ms at 0.15 and 140 px/s, which felt laggy).
 - When the finger lifts, the rocket stays where it is.
-- Also support mouse drag and arrow keys for desktop testing.
+- Also support mouse drag and arrow keys (all four) for desktop testing.
 
-### Reversed controls
-- While reversed, target x = `72 − fingerX`. Arrow keys also swap.
-- Duration: **2.5 s**. A new chicken hit while reversed **restarts the timer** (it never un-flips).
-- Feedback while reversed:
-  - HUD bar inverts (cream bar, navy text).
-  - Swap icon blinks in the HUD.
+### Dazed (chicken hit)
+- The rocket flies at **40%** of its speed and responsiveness for **2.5 s**. A new hit restarts the timer.
+- Feedback while dazed:
+  - HUD bar inverts (cream bar, navy text) and a feather icon blinks in it.
   - Rocket shakes ±2 px horizontally for the first 0.5 s.
-  - 3 orange "dizzy" pixels orbit above the rocket.
+  - The flame sputters and drops out.
+  - A small cream feather with an orange tip sways on the rocket's right side.
+
+### Reversed controls (orange egg)
+- While reversed, target x = `72 − fingerX`. Arrow keys also swap. Up and down stay normal.
+- Duration: **3 s**, restarted by another orange egg.
+- Feedback: HUD bar inverts with the swap icon, and 3 orange "dizzy" pixels orbit above the rocket. With both effects on, the HUD icons take turns.
 
 ---
 
@@ -241,10 +246,10 @@ TITLE ──tap──▶ PLAYING ──fatal hit──▶ DYING (1.2 s) ──�
 | Size | 11 × 9 |
 | Direction | Dives at 45° (vy = vx), entering from a side or the top; sprite faces its horizontal direction |
 | Speed | 36–60 px/s horizontally (the same again vertically), rising later |
-| Path | Each flock picks where its leader crosses the rocket's row: half aim at the rocket's x at spawn time, the rest anywhere. It enters from the side *away* from that spot, so it is on screen a while first. A flat crossing would be impossible to dodge, since the rocket only moves sideways |
+| Path | Each flock picks where its leader crosses the rocket's current row: half aim at the rocket's position at spawn time, the rest anywhere. It enters from the side *away* from that spot, so it is on screen a while first. A flat crossing would be impossible to dodge, since the rocket only moves sideways |
 | Formation | Single chicken, or a V of 3 or 5: each row trails 12 px behind along the path and fans 2.5 px to each side. Every flock leaves at least 17 of 64 rocket positions safe |
 | Hitbox | 9 × 7, inset 1 px |
-| On hit | Not fatal. Reversal + one egg (see 6) |
+| On hit | Not fatal. The rocket is dazed (see 4) + one strike egg (see 6) |
 
 **On hit:**
 - Burst of 12 feather particles (mostly cream, every third one orange).
@@ -415,26 +420,64 @@ Put every number from sections 4–9 in `config.ts`. Optional: a `?debug` URL fl
 - Mute: speaker icon top-right on the title and game over screens (tap area x ≥ 52, y < 16), or the M key. Saved as `get2mars.muted`. On iPhone, the ringer switch also silences it.
 
 ### Haptics (`src/haptics.ts`)
-- Near miss 10 ms, chicken hit 30 ms, shield pop 40 ms, crash 60-40-120 ms.
-- Web: Vibration API (Android only; iOS Safari has none). The Capacitor build replaces `buzz()` with native haptics.
+- Kept soft: on iOS, stars and near misses use the selection tick (the gentlest haptic), chicken hits and eggs a light impact, shield pops a medium impact, and a crash one heavy impact.
+- A buzz within 90 ms of the previous one is dropped (except a crash), so bursts don't rattle.
+- Web: Vibration API, 5–50 ms (Android only; iOS Safari has none).
 
 ### Power-ups
 | Property | Value |
 |---|---|
-| Look | 9 × 9 box with a glyph (shield, hourglass, egg). Box and glyph swap cream/orange every 16 frames |
+| Look | 9 × 9 box with a glyph (shield, clock, egg). Box and glyph swap cream/orange every 16 frames |
 | Spawn | First at 12 s, then every 12–20 s. Falls at 40 px/s, x ∈ [4, 59], away from lanes with an asteroid warning |
-| Kind | Shield or slow, 50/50. When you carry eggs, 50% chance of an egg reset instead |
-| Collect | Rocket hitbox overlaps the box. Pickup chime and a popup (SHIELD, SLOW, CLEAR) |
+| Kind | Shield or TIME, 50/50. When a CLEAR would help (strike eggs, dazed, reversed or yolk), 50% chance of a CLEAR instead |
+| Collect | Rocket hitbox overlaps the box. Pickup chime and a popup (SHIELD, TIME, CLEAR) |
 
-- **Shield (10 s):** a ring of 10 rotating pixels around the rocket. Chickens bounce off without laying eggs, and the shield stays up. An asteroid hit shatters the asteroid instead of the rocket and uses up the shield.
-- **Slow (5 s):** asteroids, warnings, chickens, pickups, spawners and stars run at half speed. The rocket, score and every timer stay at full speed.
-- **Egg reset:** empties all eggs and ends reversed controls at once.
-- Active effects show as countdown lines on the bottom edge: cream (shield) at y 143, orange (slow) at y 141. Both blink for their last 2 s.
+- **Shield (10 s):** a ring of 10 rotating pixels around the rocket. Chickens bounce off without laying eggs, and bad falling eggs break on it; the shield stays up. An asteroid hit shatters the asteroid instead of the rocket and uses up the shield.
+- **TIME (5 s, was "Slow"):** asteroids, warnings, chickens, pickups, spawners and stars run at half speed. The rocket, score and every timer stay at full speed.
+- **CLEAR:** empties the strike eggs and ends dazed, reversed and yolk at once.
+- Active effects show as countdown lines on the bottom edge: cream (shield) at y 143, orange (TIME) at y 141. Both blink for their last 2 s.
 - Everything ends on death.
 
 ---
 
-## 15. Out of scope (later ideas)
+## 15. v3: variety (built)
+
+New things unlock one at a time during a run, each announced with a popup in the middle of the screen and a two-note chime:
+
+| Time | Unlock | Popup |
+|---|---|---|
+| 10 s | Star trails | STARS |
+| 25 s | Bouncing chickens | BOUNCE |
+| 45 s | Diving chickens | DIVE |
+| 90 s | Egg-laying chickens | EGGS |
+
+### Star trails
+- Every 6–10 s, a line of 6–9 cream "+" stars (3 × 3) falls at 55 px/s, swaying side to side (sine curve, 10–22 px wide, kept on screen). Stars twinkle down to one pixel now and then.
+- Each star: +10, a chime that climbs a scale along the trail, and a selection-tick haptic. The whole trail with none missed: +50 popup and a jingle.
+- They pull you out of safe spots and make every run's path different.
+
+### Bouncing chickens
+- 35% of chicken spawns become a single bouncer: it turns back at a screen edge up to 2 times instead of flying out, so edges aren't safe.
+
+### Diving chickens
+- Every 6–10 s: a chicken drops in from the top and hovers at y 19, flapping frantically and jittering (the warning). After 1.1 s it dives in a straight line at where the rocket is at that moment, at 130 px/s, with a falling whistle.
+
+### Egg-laying chickens and falling eggs
+- 35% of chickens (divers included) carry an egg. They drop it shortly after appearing over the play area, or at the latest just above the rocket's band. Eggs fall straight down at 70 px/s. About 12 a minute late in a run.
+- **Cream egg (45%):** yolk splat. A lumpy cream blob with an orange yolk (radius ~15 px) covers part of the screen (center x 14–58, y 40–92) for 3 s, drips, and dissolves over the last second, edges first.
+- **Orange egg (45%):** reversed controls for 3 s.
+- **Golden egg (10%, flashes cream/orange):** +200, or a free shield or TIME (50/50), with a jingle.
+- The shield breaks cream and orange eggs harmlessly. Golden eggs always pay out.
+- Falling eggs are separate from the HUD strike eggs.
+
+### Later ideas for the unlock schedule
+- Comet: a fast diagonal streak with a short warning at the screen edge.
+- Satellite debris: small, fast pieces drifting sideways in pairs that push the rocket.
+- Black hole: sits at one side for a few seconds and pulls the rocket toward it.
+
+---
+
+## 16. Out of scope (later ideas)
 
 - Palette changes as you progress (unlock new three-color palettes).
 - Dithered asteroid style as a palette or level variant.

@@ -15,7 +15,17 @@ export type Sfx =
   | 'shieldPop'
   | 'slowOn'
   | 'slowOff'
-  | 'blip';
+  | 'blip'
+  | 'star'
+  | 'trail'
+  | 'dive'
+  | 'splat'
+  | 'reverse'
+  | 'golden'
+  | 'announce';
+
+// Star chimes climb this scale (semitones above C6) as you take more of one trail.
+const STAR_STEPS = [0, 2, 4, 7, 9, 12, 14, 16, 19, 21];
 
 // Note number to Hz (69 = A4).
 const hz = (note: number) => 440 * Math.pow(2, (note - 69) / 12);
@@ -70,7 +80,8 @@ export class Sound {
     if (!this.muted) this.play('blip');
   }
 
-  play(name: Sfx): void {
+  // n: for 'star', how many stars of this trail were taken before it (raises the pitch).
+  play(name: Sfx, n = 0): void {
     if (!this.ctx || this.muted) return;
     switch (name) {
       case 'start':
@@ -120,6 +131,32 @@ export class Sound {
         break;
       case 'blip':
         this.tone('square', 1200, 1200, 0.04, 0.08);
+        break;
+      case 'star': {
+        const note = hz(84 + STAR_STEPS[Math.min(n, STAR_STEPS.length - 1)]);
+        this.tone('triangle', note, note, 0.07, 0.25);
+        break;
+      }
+      case 'trail':
+        [84, 88, 91, 96].forEach((note, i) => this.tone('triangle', hz(note), hz(note), 0.07, 0.3, i * 0.05));
+        break;
+      case 'dive':
+        this.tone('square', 1400, 300, 0.35, 0.08);
+        break;
+      case 'splat':
+        this.noise(0.25, 0.4, 900, 200);
+        this.tone('triangle', 220, 90, 0.2, 0.3);
+        break;
+      case 'reverse':
+        this.tone('square', 300, 900, 0.12, 0.1);
+        this.tone('square', 900, 300, 0.12, 0.1, 0.12);
+        break;
+      case 'golden':
+        [79, 84, 88, 91, 96].forEach((note, i) => this.tone('square', hz(note), hz(note), 0.08, 0.08, i * 0.06));
+        break;
+      case 'announce':
+        this.tone('square', hz(76), hz(76), 0.08, 0.09);
+        this.tone('square', hz(83), hz(83), 0.14, 0.09, 0.09);
         break;
     }
   }

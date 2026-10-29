@@ -17,10 +17,14 @@ export const MAX_FRAME = 0.25;
 export const ROCKET = {
   w: 9,
   h: 12,
-  y: 112,
+  startY: 112, // top of the sprite at the start of a run
+  yMin: 72, // the rocket flies anywhere in the lower half
+  yMax: 124,
+  fingerOffset: 16, // the rocket sits this far above the finger so the thumb doesn't hide it
   maxSpeed: 300, // px/s when following a finger
   follow: 0.35, // fraction of the gap to the finger closed per 1/60 s
   keySpeed: 140, // px/s with the arrow keys
+  dazedFlameFrames: 3, // flame sputters this fast while dazed
   hitboxInset: 1,
   flameToggleFrames: 4,
 } as const;
@@ -127,11 +131,98 @@ export const CHICKEN = {
   feathers: 12,
 } as const;
 
-export const REVERSE = {
-  duration: 2.5, // restarts on every new hit
+// Chicken hit: the rocket is dazed and flies slow. A new hit restarts the timer.
+export const DAZE = {
+  duration: 2.5,
+  speed: 0.4, // share of normal speed and responsiveness
   shake: 2, // rocket wobble in px
   shakeTime: 0.5,
+} as const;
+
+// Orange egg hit: left and right swap.
+export const REVERSE = {
+  duration: 3,
   dizzyPixels: 3,
+} as const;
+
+// New threats and toys arrive one at a time, so every run reveals more as it goes.
+export const UNLOCK = {
+  stars: 10, // seconds into a run
+  bouncers: 25,
+  divers: 45,
+  eggLayers: 90,
+} as const;
+
+export const UNLOCK_NAMES: Record<keyof typeof UNLOCK, string> = {
+  stars: 'STARS',
+  bouncers: 'BOUNCE',
+  divers: 'DIVE',
+  eggLayers: 'EGGS',
+};
+
+// Lines of small stars that sway across lanes: +10 each, +50 for the whole line.
+export const STAR_TRAIL = {
+  intervalMin: 6,
+  intervalMax: 10,
+  countMin: 6,
+  countMax: 9,
+  spacing: 9, // px between stars
+  fallSpeed: 55, // px/s
+  amplitudeMin: 10, // sway, px
+  amplitudeMax: 22,
+  sway: 0.55, // radians of the sway curve per star
+  points: 10,
+  perfectBonus: 50,
+  size: 3,
+  twinkleFrames: 20,
+} as const;
+
+// Some chickens bounce off the screen edges instead of flying out, so edges aren't safe.
+export const BOUNCER = {
+  chance: 0.35, // share of spawns that are a single bouncer
+  bounces: 2,
+} as const;
+
+// Divers hover at the top flapping hard (the warning), then dive at where the rocket is.
+export const DIVER = {
+  intervalMin: 6,
+  intervalMax: 10,
+  hoverY: 19,
+  enterSpeed: 60, // px/s dropping in to the hover spot
+  hoverTime: 1.1,
+  speed: 130, // px/s once diving
+  flapFrames: 3,
+} as const;
+
+// Late chickens carry an egg and drop it over the play area.
+export const EGG_DROP = {
+  layerChance: 0.35, // share of chickens that carry an egg once unlocked
+  delayMin: 0.15, // s on screen before dropping
+  delayMax: 0.6,
+  lastChance: 6, // px above the rocket's band where a carrier drops its egg regardless
+  fallSpeed: 70,
+  w: 4,
+  h: 5,
+  reverseChance: 0.45, // orange egg: reversed controls
+  goldenChance: 0.1, // golden egg: a prize
+  goldenPoints: 200,
+  goldenPowerChance: 0.5, // otherwise a random power-up
+  goldenBlinkFrames: 6,
+  breakBits: 8,
+} as const;
+
+// Cream egg hit: a yolk splat covers part of the screen, then breaks up.
+export const YOLK = {
+  duration: 3,
+  fadeTime: 1, // the last part of the duration, spent dissolving
+  radius: 15,
+  yolkRadius: 5,
+  xMin: 14, // splat center range
+  xMax: 58,
+  yMin: 40,
+  yMax: 92,
+  drips: 3,
+  dripSpeed: 8, // px/s
 } as const;
 
 export const EGGS = {
@@ -165,7 +256,7 @@ export const MUTE_BUTTON = {
   hitY: 16,
 } as const;
 
-export type PowerKind = 'shield' | 'slow' | 'eggs';
+export type PowerKind = 'shield' | 'time' | 'eggs';
 
 export const POWERUP = {
   size: 9,
@@ -176,10 +267,10 @@ export const POWERUP = {
   xMin: 4, // left edge range
   xMax: 59,
   laneClear: 18, // keep this far from lanes with an asteroid warning
-  eggsChance: 0.5, // chance of an egg reset when you have eggs
+  eggsChance: 0.5, // chance of a CLEAR when you have eggs or an effect on you
   shieldTime: 10, // s, or until an asteroid pops it
-  slowTime: 5,
-  slowFactor: 0.5, // world speed while slowed; the rocket stays at full speed
+  timeTime: 5, // TIME: the world runs slow
+  timeFactor: 0.5, // world speed during TIME; the rocket stays at full speed
   shieldRadius: 10,
   shieldDots: 10,
   expiryBlink: 2, // the effect blinks for its last seconds

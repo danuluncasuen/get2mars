@@ -138,6 +138,15 @@ const BOX_TOP = 'BBBBBBBBB';
 const BOX_GAP = 'B.......B';
 export const PICKUP_MAPS: Record<PowerKind, SpriteMap> = {
   shield: [BOX_TOP, BOX_GAP, 'B.GGGGG.B', 'B.GGGGG.B', 'B.GGGGG.B', 'B..GGG..B', 'B...G...B', BOX_GAP, BOX_TOP],
-  slow: [BOX_TOP, BOX_GAP, 'B.GGGGG.B', 'B..GGG..B', 'B...G...B', 'B..GGG..B', 'B.GGGGG.B', BOX_GAP, BOX_TOP],
+  time: [BOX_TOP, BOX_GAP, 'B..GGG..B', 'B.G.G.G.B', 'B.G.GGG.B', 'B.G...G.B', 'B..GGG..B', BOX_GAP, BOX_TOP],
   eggs: [BOX_TOP, BOX_GAP, 'B...G...B', 'B..GGG..B', 'B.GGGGG.B', 'B.GGGGG.B', 'B..GGG..B', BOX_GAP, BOX_TOP],
 };
+
+// HUD icon while dazed (slowed by a chicken).
+export const FEATHER_MAP: SpriteMap = ['.....XX', '....XXX', '...XXX.', '..XXX..', '.XX....', 'X......'];
+
+// Collectible star; it twinkles down to its center pixel now and then.
+export const STAR_MAP: SpriteMap = ['.X.', 'XXX', '.X.'];
+
+// Falling egg from a late chicken.
+export const FALLING_EGG_MAP: SpriteMap = ['.XX.', 'XXXX', 'XXXX', 'XXXX', '.XX.'];

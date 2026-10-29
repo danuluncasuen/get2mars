@@ -11,14 +11,14 @@ export class PickupSpawner {
     this.timer = POWERUP.firstSpawn;
   }
 
-  // eggs: how many the rocket carries now; an egg reset only shows up when it would help.
-  update(dt: number, eggs: number, asteroids: Asteroid[]): Pickup | null {
+  // needsClear: whether a CLEAR would help right now; it only shows up then.
+  update(dt: number, needsClear: boolean, asteroids: Asteroid[]): Pickup | null {
     this.timer -= dt;
     if (this.timer > 0) return null;
     this.timer = rand(POWERUP.intervalMin, POWERUP.intervalMax);
 
-    let kind: PowerKind = Math.random() < 0.5 ? 'shield' : 'slow';
-    if (eggs > 0 && Math.random() < POWERUP.eggsChance) kind = 'eggs';
+    let kind: PowerKind = Math.random() < 0.5 ? 'shield' : 'time';
+    if (needsClear && Math.random() < POWERUP.eggsChance) kind = 'eggs';
 
     // Stay out of lanes that are about to get an asteroid.
     const warned = asteroids.filter((a) => a.phase === 'warning').map((a) => a.cx);

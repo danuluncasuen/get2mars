@@ -3,7 +3,9 @@ import {
   ASTEROID,
   AUDIO,
   CHICKEN,
+  DAZE,
   DEATH,
+  EGG_DROP,
   EGGS,
   MUTE_BUTTON,
   NEAR_MISS,
@@ -13,11 +15,15 @@ import {
   ROCKET,
   SCORE,
   SCREENS,
+  STAR_TRAIL,
+  UNLOCK,
+  UNLOCK_NAMES,
   VIEW,
   type PowerKind,
 } from './config';
 import { Asteroid } from './entities/asteroid';
 import { Chicken } from './entities/chicken';
+import { Egg, randomEggKind } from './entities/egg';
 import { Pickup } from './entities/pickup';
 import { Rocket } from './entities/rocket';
 import { Starfield } from './entities/stars';
@@ -28,12 +34,14 @@ import { renderGameOver, renderTitle } from './screens';
 import { ROCKET_COLORS, ROCKET_MAP } from './sprites';
 import { boxesOverlap, circleHitsBox } from './systems/collision';
 import { sampleDifficulty } from './systems/difficulty';
-import { FlockSpawner } from './systems/flocks';
+import { DiverSpawner, FlockSpawner } from './systems/flocks';
 import { Particles } from './systems/particles';
 import { PickupSpawner } from './systems/pickups';
 import { Popups } from './systems/popups';
 import { Shake } from './systems/shake';
 import { AsteroidSpawner } from './systems/spawner';
+import { StarTrails } from './systems/startrails';
+import { Yolk } from './systems/yolk';
 import { loadBest, saveBest } from './storage';
 
 // doomed: third egg filled, eggs blink before the rocket explodes.
@@ -53,25 +61,32 @@ export class Game {
   private best = loadBest();
   private newBest = false;
 
-  // Chicken trouble
+  // Chicken trouble. `eggs` are the strike counter in the HUD; falling eggs are `droppedEggs`.
   private eggs = 0;
   private sinceChickenHit = 0; // drives egg decay
   private immunity = 0;
-  private reverseTimer = 0;
+  private dazeTimer = 0; // chicken hit: the rocket flies slow
+  private reverseTimer = 0; // orange egg: left and right swap
   private wobbleTimer = 0;
 
   // Power-ups
   private shieldTimer = 0;
-  private slowTimer = 0;
+  private timeTimer = 0; // TIME: the world runs slow
+
+  private readonly announced = new Set<keyof typeof UNLOCK>();
 
   private readonly stars = new Starfield();
   private readonly rocket = new Rocket();
   private asteroids: Asteroid[] = [];
   private chickens: Chicken[] = [];
   private pickups: Pickup[] = [];
+  private droppedEggs: Egg[] = [];
   private readonly asteroidSpawner = new AsteroidSpawner();
   private readonly flockSpawner = new FlockSpawner();
+  private readonly diverSpawner = new DiverSpawner();
   private readonly pickupSpawner = new PickupSpawner();
+  private readonly starTrails = new StarTrails();
+  private readonly yolk = new Yolk();
   private readonly particles = new Particles();
   private readonly popups = new Popups();
   readonly shake = new Shake();
@@ -90,17 +105,23 @@ export class Game {
     this.eggs = 0;
     this.sinceChickenHit = 0;
     this.immunity = 0;
+    this.dazeTimer = 0;
     this.reverseTimer = 0;
     this.wobbleTimer = 0;
     this.shieldTimer = 0;
-    this.slowTimer = 0;
+    this.timeTimer = 0;
+    this.announced.clear();
     this.rocket.reset();
     this.asteroids = [];
     this.chickens = [];
     this.pickups = [];
+    this.droppedEggs = [];
     this.asteroidSpawner.reset();
     this.flockSpawner.reset();
+    this.diverSpawner.reset();
     this.pickupSpawner.reset();
+    this.starTrails.reset();
+    this.yolk.clear();
     this.particles.clear();
     this.popups.clear();
     this.shake.clear();
@@ -108,16 +129,21 @@ export class Game {
     this.sound.startMusic();
   }
 
+  private unlocked(feature: keyof typeof UNLOCK): boolean {
+    return this.time >= UNLOCK[feature];
+  }
+
   update(dt: number): void {
     this.frame++;
     if (this.input.consumeMuteKey()) this.sound.toggleMute();
-    // Slow motion slows the world; the rocket, score and timers keep real time.
-    const slowed = this.slowTimer > 0;
-    const wdt = slowed ? dt * POWERUP.slowFactor : dt;
+    // TIME slows the world; the rocket, score and timers keep real time.
+    const wdt = this.timeTimer > 0 ? dt * POWERUP.timeFactor : dt;
+    const playing = this.state === 'playing';
     this.stars.update(wdt, this.state === 'title' ? 0.25 : 1);
     this.shake.update(dt);
     this.particles.update(dt);
     this.popups.update(dt);
+    this.yolk.update(dt);
     this.wobbleTimer = Math.max(0, this.wobbleTimer - dt);
 
     if (this.state === 'title' || this.state === 'over') {
@@ -128,32 +154,55 @@ export class Game {
       else if (tap && ready) this.startRun();
     }
 
-    if (this.state === 'playing') {
+    if (playing) {
       this.time += dt;
       this.score += SCORE.perSecond * dt;
-      this.updateChickenEffects(dt);
+      this.announceUnlocks();
+      this.updateEffects(dt);
       this.updatePowerups(dt);
       this.rocket.update(dt, this.input);
       const d = sampleDifficulty(this.time);
       const rocks = this.asteroidSpawner.update(wdt, d, this.asteroids);
       if (rocks.length) this.sound.play('warning');
       this.asteroids.push(...rocks);
-      this.chickens.push(...this.flockSpawner.update(wdt, d, this.rocket.x));
-      const pickup = this.pickupSpawner.update(wdt, this.eggs, this.asteroids);
+      const eggLayers = this.unlocked('eggLayers');
+      this.chickens.push(
+        ...this.flockSpawner.update(wdt, d, this.rocket.x, this.rocket.y, this.unlocked('bouncers'), eggLayers),
+      );
+      if (this.unlocked('divers')) {
+        const diver = this.diverSpawner.update(wdt, eggLayers);
+        if (diver) this.chickens.push(diver);
+      }
+      const pickup = this.pickupSpawner.update(wdt, this.needsClear, this.asteroids);
       if (pickup) this.pickups.push(pickup);
     }
 
     for (const a of this.asteroids) a.update(wdt);
-    for (const c of this.chickens) c.update(wdt);
+    for (const c of this.chickens) {
+      c.update(wdt);
+      if (c.state === 'hovering' && c.hoverLeft <= 0) {
+        c.dive(this.rocket.x + ROCKET.w / 2, this.rocket.y + ROCKET.h / 2);
+        if (playing) this.sound.play('dive');
+      }
+      if (c.dropEgg()) {
+        const x = c.x + CHICKEN.w / 2 - EGG_DROP.w / 2;
+        this.droppedEggs.push(new Egg(Math.round(x), Math.round(c.y + CHICKEN.h - 2), randomEggKind()));
+      }
+    }
     for (const p of this.pickups) p.update(wdt);
-    if (this.state === 'playing') {
+    for (const e of this.droppedEggs) e.update(wdt);
+    this.starTrails.update(wdt, playing && this.unlocked('stars'));
+    if (playing) {
       this.checkAsteroids();
       if (this.state === 'playing') this.checkChickens();
       if (this.state === 'playing') this.checkPickups();
+      if (this.state === 'playing') this.checkStars();
+      if (this.state === 'playing') this.checkEggs();
     }
     this.asteroids = this.asteroids.filter((a) => !a.dead);
     this.chickens = this.chickens.filter((c) => !c.dead);
     this.pickups = this.pickups.filter((p) => !p.dead);
+    this.droppedEggs = this.droppedEggs.filter((e) => !e.dead);
 
     if (this.state === 'doomed' || this.state === 'dying') {
       this.stateTimer -= dt;
@@ -163,21 +212,41 @@ export class Game {
       }
     }
 
-    // Music speeds up as the run gets harder and drops to half speed in slow motion.
+    // Music speeds up as the run gets harder and drops to half speed during TIME.
     const rise = 1 + AUDIO.tempoRise * Math.min(1, this.time / 120);
-    this.sound.update(rise * (this.slowTimer > 0 ? POWERUP.slowFactor : 1));
+    this.sound.update(rise * (this.timeTimer > 0 ? POWERUP.timeFactor : 1));
+  }
+
+  // Names each new kind of thing the moment it starts showing up.
+  private announceUnlocks(): void {
+    for (const key of Object.keys(UNLOCK) as (keyof typeof UNLOCK)[]) {
+      if (this.announced.has(key) || !this.unlocked(key)) continue;
+      this.announced.add(key);
+      const name = UNLOCK_NAMES[key];
+      this.popups.add(name, VIEW.w / 2 - name.length * 4, 64);
+      this.sound.play('announce');
+    }
+  }
+
+  // A CLEAR power-up would help: strikes, or an effect on the rocket.
+  private get needsClear(): boolean {
+    return this.eggs > 0 || this.dazeTimer > 0 || this.reverseTimer > 0 || this.yolk.active;
   }
 
   private updatePowerups(dt: number): void {
     this.shieldTimer = Math.max(0, this.shieldTimer - dt);
-    if (this.slowTimer > 0) {
-      this.slowTimer = Math.max(0, this.slowTimer - dt);
-      if (this.slowTimer === 0) this.sound.play('slowOff');
+    if (this.timeTimer > 0) {
+      this.timeTimer = Math.max(0, this.timeTimer - dt);
+      if (this.timeTimer === 0) this.sound.play('slowOff');
     }
   }
 
-  private updateChickenEffects(dt: number): void {
+  private updateEffects(dt: number): void {
     this.immunity = Math.max(0, this.immunity - dt);
+    if (this.dazeTimer > 0) {
+      this.dazeTimer = Math.max(0, this.dazeTimer - dt);
+      this.rocket.speedScale = this.dazeTimer > 0 ? DAZE.speed : 1;
+    }
     if (this.reverseTimer > 0) {
       this.reverseTimer = Math.max(0, this.reverseTimer - dt);
       this.rocket.reversed = this.reverseTimer > 0;
@@ -189,6 +258,13 @@ export class Game {
         this.sinceChickenHit = 0;
       }
     }
+  }
+
+  private clearEffects(): void {
+    this.dazeTimer = 0;
+    this.reverseTimer = 0;
+    this.rocket.speedScale = 1;
+    this.rocket.reversed = false;
   }
 
   private checkAsteroids(): void {
@@ -243,19 +319,85 @@ export class Game {
 
   private collect(kind: PowerKind): void {
     this.sound.play('pickup');
-    const label = { shield: 'SHIELD', slow: 'SLOW', eggs: 'CLEAR' }[kind];
+    const label = { shield: 'SHIELD', time: 'TIME', eggs: 'CLEAR' }[kind];
     this.popups.add(label, this.rocket.x + ROCKET.w / 2 - label.length * 4, this.rocket.y - 4);
     if (kind === 'shield') this.shieldTimer = POWERUP.shieldTime;
-    if (kind === 'slow') {
-      if (this.slowTimer === 0) this.sound.play('slowOn');
-      this.slowTimer = POWERUP.slowTime;
+    if (kind === 'time') {
+      if (this.timeTimer === 0) this.sound.play('slowOn');
+      this.timeTimer = POWERUP.timeTime;
     }
     if (kind === 'eggs') {
       this.eggs = 0;
       this.sinceChickenHit = 0;
-      this.reverseTimer = 0;
-      this.rocket.reversed = false;
+      this.clearEffects();
+      this.yolk.clear();
     }
+  }
+
+  private checkStars(): void {
+    for (const hit of this.starTrails.collect(this.rocket.hitbox)) {
+      this.score += STAR_TRAIL.points;
+      this.sound.play('star', hit.index);
+      buzz('star');
+      for (let i = 0; i < 4; i++) {
+        this.particles.add(hit.x, hit.y, rand(-40, 40), -rand(10, 60), rand(0.2, 0.4), PALETTE.rocket);
+      }
+      if (hit.perfect) {
+        this.score += STAR_TRAIL.perfectBonus;
+        this.popups.add(`+${STAR_TRAIL.perfectBonus}`, this.rocket.x + ROCKET.w / 2 - 12, this.rocket.y - 4);
+        this.sound.play('trail');
+      }
+    }
+  }
+
+  private checkEggs(): void {
+    const box = this.rocket.hitbox;
+    for (const e of this.droppedEggs) {
+      if (e.dead || !boxesOverlap(e.hitbox, box)) continue;
+      e.dead = true;
+      if (e.kind === 'golden') {
+        this.collectGolden();
+        continue;
+      }
+      this.breakEgg(e);
+      // The shield takes bad eggs harmlessly.
+      if (this.shieldTimer > 0) {
+        this.sound.play('bounce');
+        continue;
+      }
+      buzz('egg');
+      if (e.kind === 'splat') {
+        this.yolk.add();
+        this.sound.play('splat');
+      } else {
+        this.reverseTimer = REVERSE.duration;
+        this.rocket.reversed = true;
+        this.sound.play('reverse');
+      }
+    }
+  }
+
+  private breakEgg(e: Egg): void {
+    const color = e.kind === 'reverse' ? PALETTE.detail : PALETTE.rocket;
+    for (let i = 0; i < EGG_DROP.breakBits; i++) {
+      this.particles.add(e.x + 2, e.y + 2, rand(-50, 50), -rand(20, 80), rand(0.4, 0.7), color);
+    }
+  }
+
+  // Golden egg: a big bonus, or a free power-up.
+  private collectGolden(): void {
+    this.sound.play('golden');
+    buzz('egg');
+    for (let i = 0; i < 12; i++) {
+      const color = i % 2 ? PALETTE.detail : PALETTE.rocket;
+      this.particles.add(this.rocket.x + ROCKET.w / 2, this.rocket.y, rand(-70, 70), -rand(30, 100), rand(0.5, 0.9), color);
+    }
+    if (Math.random() < EGG_DROP.goldenPowerChance) {
+      this.collect(Math.random() < 0.5 ? 'shield' : 'time');
+      return;
+    }
+    this.score += EGG_DROP.goldenPoints;
+    this.popups.add(`+${EGG_DROP.goldenPoints}`, this.rocket.x + ROCKET.w / 2 - 16, this.rocket.y - 4);
   }
 
   // An asteroid hit while shielded: the rock shatters and the shield is used up.
@@ -298,9 +440,9 @@ export class Game {
     this.eggs++;
     this.sinceChickenHit = 0;
     this.immunity = EGGS.immunity;
-    this.reverseTimer = REVERSE.duration;
-    this.rocket.reversed = true;
-    this.wobbleTimer = REVERSE.shakeTime;
+    this.dazeTimer = DAZE.duration;
+    this.rocket.speedScale = DAZE.speed;
+    this.wobbleTimer = DAZE.shakeTime;
 
     this.sound.play('chicken');
     buzz('chicken');
@@ -334,10 +476,9 @@ export class Game {
     this.state = 'dying';
     this.deathCause = cause;
     this.stateTimer = DEATH.duration;
-    this.rocket.reversed = false;
-    this.reverseTimer = 0;
+    this.clearEffects();
     this.shieldTimer = 0;
-    this.slowTimer = 0;
+    this.timeTimer = 0;
     this.shake.add(DEATH.shake, DEATH.shakeTime);
     this.sound.stopMusic();
     this.sound.play('crash');
@@ -350,7 +491,7 @@ export class Game {
         if (!color) return;
         const vx = (i - 4) * 15 + rand(-30, 30);
         const vy = (j - 6) * 12 - rand(0, 72);
-        this.particles.add(x0 + i, this.rocket.y + j, vx, vy, rand(DEATH.lifeMin, DEATH.lifeMax), color);
+        this.particles.add(x0 + i, Math.round(this.rocket.y) + j, vx, vy, rand(DEATH.lifeMin, DEATH.lifeMax), color);
       });
     });
   }
@@ -376,9 +517,12 @@ export class Game {
     }
     for (const a of this.asteroids) a.render(ctx);
     for (const p of this.pickups) p.render(ctx);
+    this.starTrails.render(ctx, this.frame);
+    for (const e of this.droppedEggs) e.render(ctx);
     for (const c of this.chickens) c.render(ctx);
     if (this.state === 'playing' || this.state === 'doomed') this.renderRocket(ctx);
     this.particles.render(ctx);
+    this.yolk.render(ctx);
     this.popups.render(ctx);
     if (this.debug) this.renderDebug(ctx);
     if (this.state === 'over') {
@@ -397,6 +541,7 @@ export class Game {
       score: this.score,
       eggs: this.eggs,
       reversed: this.rocket.reversed,
+      dazed: this.dazeTimer > 0,
       eggsBlink: this.state === 'doomed',
       frame: this.frame,
     });
@@ -405,8 +550,8 @@ export class Game {
   private renderRocket(ctx: CanvasRenderingContext2D): void {
     let wobble = 0;
     if (this.wobbleTimer > 0) {
-      const fade = this.wobbleTimer / REVERSE.shakeTime;
-      wobble = Math.round(Math.sin(this.frame * 0.9) * REVERSE.shake * Math.min(1, fade));
+      const fade = this.wobbleTimer / DAZE.shakeTime;
+      wobble = Math.round(Math.sin(this.frame * 0.9) * DAZE.shake * Math.min(1, fade));
     }
     this.rocket.render(ctx, this.frame, wobble);
 
@@ -422,6 +567,19 @@ export class Game {
       }
     }
 
+    // Dazed: a feather stuck to the rocket's side, swaying.
+    if (this.dazeTimer > 0) {
+      const fx = Math.round(this.rocket.x + wobble) + ROCKET.w;
+      const fy = Math.round(this.rocket.y) + 4;
+      const sway = Math.round(Math.sin(this.frame * 0.15));
+      ctx.fillStyle = PALETTE.rocket;
+      ctx.fillRect(fx, fy + 2, 1, 1);
+      ctx.fillRect(fx + 1 + sway, fy + 1, 1, 1);
+      ctx.fillRect(fx + 1 + sway, fy, 2, 1);
+      ctx.fillStyle = PALETTE.detail;
+      ctx.fillRect(fx + 3 + sway, fy - 1, 1, 1);
+    }
+
     // Dizzy pixels orbit above the rocket while controls are reversed.
     if (this.rocket.reversed) {
       ctx.fillStyle = PALETTE.detail;
@@ -434,7 +592,7 @@ export class Game {
     }
   }
 
-  // Thin countdown lines along the bottom edge: cream for the shield, orange for slow motion.
+  // Thin countdown lines along the bottom edge: cream for the shield, orange for TIME.
   private renderPowerTimers(ctx: CanvasRenderingContext2D): void {
     const line = (t: number, total: number, y: number, color: string) => {
       if (t <= 0 || (t < POWERUP.expiryBlink && Math.floor(this.frame / 6) % 2)) return;
@@ -442,7 +600,7 @@ export class Game {
       ctx.fillRect(0, y, Math.ceil((VIEW.w * t) / total), 1);
     };
     line(this.shieldTimer, POWERUP.shieldTime, VIEW.h - 1, PALETTE.rocket);
-    line(this.slowTimer, POWERUP.slowTime, VIEW.h - 3, PALETTE.detail);
+    line(this.timeTimer, POWERUP.timeTime, VIEW.h - 3, PALETTE.detail);
   }
 
   private renderDebug(ctx: CanvasRenderingContext2D): void {
@@ -453,6 +611,8 @@ export class Game {
     outline(this.rocket.hitbox);
     for (const c of this.chickens) if (c.state === 'flying') outline(c.hitbox);
     for (const p of this.pickups) outline(p.hitbox);
+    for (const e of this.droppedEggs) outline(e.hitbox);
+    for (const b of this.starTrails.boxes) outline(b);
     for (const a of this.asteroids) {
       if (a.phase !== 'falling') continue;
       ctx.beginPath();
