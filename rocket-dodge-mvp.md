@@ -94,7 +94,7 @@ BBBBBBBBBB.
 ....O..O...
 ```
 
-**Asteroid — generated, radius 14 (about 29 × 29)**
+**Asteroid — generated, radius 12 (about 25 × 25)**
 
 Generate once per variant at startup into an offscreen canvas (make 4–6 variants from fixed seeds):
 
@@ -189,7 +189,7 @@ TITLE ──tap──▶ PLAYING ──fatal hit──▶ DYING (1.2 s) ──�
 | Vertical position | Free within the lower half: top edge y ∈ [72, 124], starting at 112 |
 | Horizontal range | x ∈ [0, 63] (clamped) |
 | Hitbox | 7 × 10, inset 1 px on each side (forgiving) |
-| Max speed | 300 px/s following a finger, 140 px/s with arrow keys |
+| Max speed | 300 px/s following a finger, 140 px/s with arrow keys. After the finger goes back down, the top speed eases up from 70 to 300 px/s over 0.4 s, so the rocket glides over instead of jumping |
 
 ### Controls
 - **Drag anywhere** on the screen. The rocket's target is the finger's position (converted to logical pixels), with the rocket centered on the finger (an offset above it, 16 px then 8 px, felt too far) so the thumb doesn't hide it.
@@ -219,11 +219,11 @@ TITLE ──tap──▶ PLAYING ──fatal hit──▶ DYING (1.2 s) ──�
 
 | Property | Value |
 |---|---|
-| Size | Radius 14 (about 29 px wide) |
+| Size | Radius 12 (about 25 px wide; 14 made some pairs near impossible) |
 | Spawn lane | Center x random in [16, 56] |
 | Warning time | 1.5 s at start, shrinking to 0.8 s (see 8) |
 | Fall speed | 190 px/s, rising to 240 px/s |
-| Hitbox | Circle, radius 12 (slightly smaller than drawn) |
+| Hitbox | Circle, radius 10 (slightly smaller than drawn) |
 | On hit | Fatal → DYING |
 
 **Warning phase** (before the asteroid appears):
@@ -237,7 +237,7 @@ TITLE ──tap──▶ PLAYING ──fatal hit──▶ DYING (1.2 s) ──�
 
 **Rules:**
 - Asteroids only fall vertically. The rocket only moves sideways, so a sideways asteroid would be undodgeable.
-- Never spawn two asteroid lanes that together leave no gap wider than 14 px for the rocket.
+- Never spawn two asteroid lanes that together leave no gap wider than 18 px for the rocket.
 
 ### 5.2 Chickens (nuisance)
 
@@ -259,6 +259,8 @@ TITLE ──tap──▶ PLAYING ──fatal hit──▶ DYING (1.2 s) ──�
 ---
 
 ## 6. Hearts (chicken lives)
+
+- Losing a heart flashes a 2 px orange frame around the play area for 0.6 s, blinking every 0.1 s, so you catch it out of the corner of your eye. The lost heart flickers in the HUD at the same time.
 
 - The HUD shows **3 hearts** (5 × 5, 2 px apart, x 51–69): full orange hearts for lives left, cream outlines for lost ones (navy while the bar is inverted). Hearts make it obvious that chicken hits matter. They replaced 3, then 5, egg slots.
 - Each chicken hit costs a heart. **Losing all 3 = fatal**, exactly like an asteroid hit (death cause: chicken → "FOWL PLAY").
@@ -315,10 +317,11 @@ The first asteroid comes 2 s into a run and the first chicken at 4 s, so players
 ├────────────────────────────────────┤  y 15: 1 px orange line
 ```
 
-- Pause bars: x = 3 and 5, y 5–11, in the bar's text color. Tapping anywhere on the bar pauses.
-- Score: x = 9, baseline y = 12, cream (navy when reversed).
-- Effect icon: x = 42, y = 4, only while dazed or reversed, blinking.
-- Hearts: x = 51, 58, 65, y = 5. Filled = orange, empty = outline in the bar's text color.
+- One row, left to right, icons centered on the digits (y 6–10, digits y 5–11):
+  - Pause: two 2 px bars at x 2 and 6, in the bar's text color. Tapping anywhere on the bar pauses.
+  - Score: x = 11 (ink 11–41), baseline y = 12, cream (navy when the bar is inverted).
+  - Effect icon: x = 43, y = 5, only while dazed or reversed, blinking.
+  - Hearts: x = 52, 58, 64 (5 px wide, 1 px apart). Filled = orange, empty = outline in the bar's text color.
 - Play area: y 16–143.
 
 ---
@@ -475,23 +478,32 @@ New things unlock one at a time during a run, each announced with a popup in the
 ### Later ideas for the unlock schedule
 - Comet: a fast diagonal streak with a short warning at the screen edge.
 - Satellite debris: small, fast pieces drifting sideways in pairs that push the rocket.
-- Black hole: sits at one side for a few seconds and pulls the rocket toward it.
 
 ---
 
 ## 16. Mars on the horizon (built)
 
 - The game stays endless (it keeps the scoreboard meaningful). Mars shows progress instead of being a finish line.
-- Mars rises into the **top-right corner** from behind the HUD and the screen edge: center (66, 8), radius growing from 6 (hidden) to a cap of **26** over **180 s**, then staying. At full size it covers the corner down to about y 34, out of the middle lanes.
-- Drawn as a **50% orange/navy checker**, so it reads as far-off scenery. Solid orange stays reserved for things that hurt you. Craters are sparser patches (one pixel in four) and the lit rim on the lower-left edge is a cream checker.
+- Mars rises into the **top-left corner** from behind the HUD and the screen edge: center (6, 8), radius growing from 6 (hidden) to a cap of **26** over **180 s**, then staying. At full size it covers the corner down to about y 34, out of the middle lanes.
+- Drawn as a **50% orange/navy checker**, so it reads as far-off scenery. Solid orange stays reserved for things that hurt you. Craters are sparser patches (one pixel in four) and the lit rim on the lower-right edge is a cream checker.
+- It sat top-right at first, but there it hid the mute button on the game over screen.
 - The checker stays locked to the screen's pixel grid as the planet grows, so it never shimmers.
+
+### Black hole (unlocks at 120 s, as GRAVITY)
+- Every 14–20 s a black hole opens at the left or right edge of the rocket's band (y 84–116), on the side away from the rocket. Only one at a time.
+- It grows in over 0.8 s (harmless, the warning, with a deep swooping sound), stays open 5 s, and shrinks away over 0.6 s.
+- Look: a navy core (radius 4) with an orange rim, a flat ring of orange and cream dots spinning around it, and cream specks spiralling in.
+- Pull: within 40 px it drags the rocket off your finger toward its center, by up to 10 px, more the closer you get. Without a finger on the screen, the rocket drifts toward it.
+- Coming apart: within 22 px of the center (rocket center), the rocket starts losing pixels to the hole. They peel off the sprite and stream straight into the core, up to 60 a second at the core's edge. The rocket shivers a pixel either way, and the phone ticks faster as you get closer (every 0.35 s down to every 0.1 s).
+- **Knock a chicken in: +200.** A chicken bounced off the shield tumbles away, and an open hole drags tumbling chickens in, bleeding their speed so they spiral down instead of slingshotting past. One knocked in off the shield scores +200, with a popup by the hole. Knocks toward the hole land from about 30 px away. Chickens tumbling after a plain hit get swallowed too, but score nothing.
+- Flying into the open core is a crash ("SUCKED IN"). Instead of exploding outward, every pixel of the rocket streams into the core over about 0.8 s, with a long sliding swoop instead of the crash. With a shield, the hole collapses instead and the shield is used up.
 
 ---
 
 ## 17. Pause (built)
 
 - **Pausing:** tap the top bar mid-run, or press P or Esc. The run also pauses itself when the app goes to the background or, on desktop, the window loses focus.
-- **While paused:** the game freezes in place, audio included (the clock stops, so the music picks up mid-bar). A navy panel with an orange border shows **PAUSE**, a mute toggle, and a blinking **TAP**.
+- **While paused:** the game freezes in place, audio included (the clock stops, so the music picks up mid-bar). A navy panel with an orange border shows **PAUSE**, a mute toggle, and a blinking **TAP**. Unmuting wakes the audio just long enough to play its blip, so you hear that it worked.
 - **Resuming:** tap anywhere else (or press P, Esc, Space or Enter). A **3, 2, 1** countdown follows, 0.4 s per number, with a blip on each, so you can put your finger back before anything moves. The music plays through the countdown.
 
 ---

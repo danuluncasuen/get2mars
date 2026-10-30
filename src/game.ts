@@ -2,10 +2,12 @@ import type { Sound } from './audio';
 import {
   ASTEROID,
   AUDIO,
+  BLACK_HOLE,
   CHICKEN,
   DAZE,
   HUD,
   DEATH,
+  HURT,
   EGG_DROP,
   LIVES,
   MUTE_BUTTON,
@@ -25,6 +27,7 @@ import {
   type PowerKind,
 } from './config';
 import { Asteroid } from './entities/asteroid';
+import type { BlackHole } from './entities/blackhole';
 import { Chicken } from './entities/chicken';
 import { Egg, randomEggKind } from './entities/egg';
 import { Mars } from './entities/mars';
@@ -36,6 +39,7 @@ import { renderHud } from './hud';
 import type { Input } from './input';
 import { renderGameOver, renderPause, renderTitle } from './screens';
 import { ROCKET_COLORS, ROCKET_MAP } from './sprites';
+import { BlackHoleSpawner } from './systems/blackholes';
 import { boxesOverlap, circleHitsBox } from './systems/collision';
 import { sampleDifficulty } from './systems/difficulty';
 import { DiverSpawner, FlockSpawner } from './systems/flocks';
@@ -50,7 +54,7 @@ import { loadBest, saveBest } from './storage';
 
 // doomed: last heart lost, hearts blink before the rocket explodes.
 type State = 'title' | 'playing' | 'doomed' | 'dying' | 'over';
-export type DeathCause = 'asteroid' | 'chicken';
+export type DeathCause = 'asteroid' | 'chicken' | 'hole';
 
 const rand = (min: number, max: number) => min + Math.random() * (max - min);
 
@@ -72,6 +76,7 @@ export class Game {
   private dazeTimer = 0; // chicken hit: the rocket flies slow
   private reverseTimer = 0; // orange egg: left and right swap
   private wobbleTimer = 0;
+  private hurtTimer = 0; // heart just lost: screen edge flashes
 
   // Power-ups
   private shieldTimer = 0;
@@ -90,9 +95,14 @@ export class Game {
   private chickens: Chicken[] = [];
   private pickups: Pickup[] = [];
   private droppedEggs: Egg[] = [];
+  private holes: BlackHole[] = [];
   private readonly asteroidSpawner = new AsteroidSpawner();
   private readonly flockSpawner = new FlockSpawner();
   private readonly diverSpawner = new DiverSpawner();
+  private readonly holeSpawner = new BlackHoleSpawner();
+  private holeDanger = 0; // 0–1, how close the rocket is to an open core
+  private peelAcc = 0; // pixels owed to the peel
+  private tickTimer = 0; // s until the next pull haptic
   private readonly pickupSpawner = new PickupSpawner();
   private readonly starTrails = new StarTrails();
   private readonly yolk = new Yolk();
@@ -117,6 +127,7 @@ export class Game {
     this.dazeTimer = 0;
     this.reverseTimer = 0;
     this.wobbleTimer = 0;
+    this.hurtTimer = 0;
     this.shieldTimer = 0;
     this.timeTimer = 0;
     this.announced.clear();
@@ -125,7 +136,12 @@ export class Game {
     this.chickens = [];
     this.pickups = [];
     this.droppedEggs = [];
+    this.holes = [];
+    this.holeDanger = 0;
+    this.peelAcc = 0;
+    this.tickTimer = 0;
     this.asteroidSpawner.reset();
+    this.holeSpawner.reset();
     this.flockSpawner.reset();
     this.diverSpawner.reset();
     this.pickupSpawner.reset();
@@ -159,6 +175,7 @@ export class Game {
     this.popups.update(dt);
     this.yolk.update(dt);
     this.wobbleTimer = Math.max(0, this.wobbleTimer - dt);
+    this.hurtTimer = Math.max(0, this.hurtTimer - dt);
 
     if (this.state === 'title' || this.state === 'over') {
       this.screenTime += dt;
@@ -180,6 +197,7 @@ export class Game {
       this.announceUnlocks();
       this.updateEffects(dt);
       this.updatePowerups(dt);
+      this.applyPull();
       this.rocket.update(dt, this.input);
       const d = sampleDifficulty(this.time);
       const rocks = this.asteroidSpawner.update(wdt, d, this.asteroids);
@@ -193,12 +211,21 @@ export class Game {
         const diver = this.diverSpawner.update(wdt, eggLayers);
         if (diver) this.chickens.push(diver);
       }
+      if (this.unlocked('blackHoles')) {
+        const hole = this.holeSpawner.update(wdt, this.rocket.x, this.holes.length > 0);
+        if (hole) {
+          this.holes.push(hole);
+          this.sound.play('hole');
+        }
+      }
       const pickup = this.pickupSpawner.update(wdt, this.needsClear, this.asteroids);
       if (pickup) this.pickups.push(pickup);
     }
 
     for (const a of this.asteroids) a.update(wdt);
     for (const c of this.chickens) {
+      if (c.state === 'tumbling') this.dragIntoHoles(c, wdt);
+      if (c.dead) continue;
       c.update(wdt);
       if (c.state === 'hovering' && c.hoverLeft <= 0) {
         c.dive(this.rocket.x + ROCKET.w / 2, this.rocket.y + ROCKET.h / 2);
@@ -209,6 +236,7 @@ export class Game {
         this.droppedEggs.push(new Egg(Math.round(x), Math.round(c.y + CHICKEN.h - 2), randomEggKind()));
       }
     }
+    for (const h of this.holes) h.update(wdt);
     for (const p of this.pickups) p.update(wdt);
     for (const e of this.droppedEggs) e.update(wdt);
     this.starTrails.update(wdt, playing && this.unlocked('stars'));
@@ -218,11 +246,14 @@ export class Game {
       if (this.state === 'playing') this.checkPickups();
       if (this.state === 'playing') this.checkStars();
       if (this.state === 'playing') this.checkEggs();
+      if (this.state === 'playing') this.checkHoles();
+      if (this.state === 'playing') this.peel(dt);
     }
     this.asteroids = this.asteroids.filter((a) => !a.dead);
     this.chickens = this.chickens.filter((c) => !c.dead);
     this.pickups = this.pickups.filter((p) => !p.dead);
     this.droppedEggs = this.droppedEggs.filter((e) => !e.dead);
+    this.holes = this.holes.filter((h) => !h.dead);
 
     if (this.state === 'doomed' || this.state === 'dying') {
       this.stateTimer -= dt;
@@ -438,6 +469,117 @@ export class Game {
     }
   }
 
+  // Black holes drag the rocket's target toward them; the pulls add up.
+  private applyPull(): void {
+    const cx = this.rocket.x + ROCKET.w / 2;
+    const cy = this.rocket.y + ROCKET.h / 2;
+    this.rocket.pullX = 0;
+    this.rocket.pullY = 0;
+    for (const h of this.holes) {
+      const p = h.pullOn(cx, cy);
+      this.rocket.pullX += p.x;
+      this.rocket.pullY += p.y;
+    }
+  }
+
+  // Tumbling chickens curve into open holes; one knocked off the shield is worth points.
+  private dragIntoHoles(c: Chicken, dt: number): void {
+    const cx = c.x + CHICKEN.w / 2;
+    const cy = c.y + CHICKEN.h / 2;
+    for (const h of this.holes) {
+      if (h.swallows(cx, cy)) {
+        c.dead = true;
+        for (let i = 0; i < BLACK_HOLE.chickenBits; i++) {
+          const x = c.x + Math.random() * CHICKEN.w;
+          const y = c.y + Math.random() * CHICKEN.h;
+          this.streamInto(h, x, y, rand(15, 40), i % 4 ? PALETTE.rocket : PALETTE.detail);
+        }
+        if (c.knocked && this.state === 'playing') {
+          this.score += BLACK_HOLE.chickenPoints;
+          this.popups.add(`+${BLACK_HOLE.chickenPoints}`, h.cx < VIEW.w / 2 ? h.cx + 4 : h.cx - 36, h.cy - 10);
+          this.sound.play('trail');
+          buzz('egg');
+        }
+        this.sound.play('swallow');
+        return;
+      }
+      const a = h.chickenPull(cx, cy);
+      c.accelerate(a.x, a.y, a.drag, dt);
+    }
+  }
+
+  // Into the core is a crash; a shield collapses the hole instead.
+  private checkHoles(): void {
+    const box = this.rocket.hitbox;
+    for (const h of this.holes) {
+      if (!h.open || !h.coreHits(box)) continue;
+      if (this.shieldTimer > 0) {
+        h.collapse();
+        this.shieldTimer = 0;
+        for (let i = 0; i < POWERUP.popSparks; i++) {
+          const a = (i / POWERUP.popSparks) * Math.PI * 2;
+          this.particles.add(h.cx, h.cy, Math.cos(a) * 60, Math.sin(a) * 60, rand(0.4, 0.8), i % 2 ? PALETTE.detail : PALETTE.rocket);
+        }
+        this.shake.add(DEATH.shake, DEATH.shakeTime);
+        this.sound.play('shieldPop');
+        buzz('shieldPop');
+        continue;
+      }
+      this.die('hole', h);
+      return;
+    }
+  }
+
+  // Near an open core the rocket comes apart: pixels stream into it and the phone ticks.
+  private peel(dt: number): void {
+    const cx = this.rocket.x + ROCKET.w / 2;
+    const cy = this.rocket.y + ROCKET.h / 2;
+    let hole: BlackHole | null = null;
+    this.holeDanger = 0;
+    for (const h of this.holes) {
+      const d = h.danger(cx, cy);
+      if (d > this.holeDanger) {
+        this.holeDanger = d;
+        hole = h;
+      }
+    }
+    if (!hole) {
+      this.peelAcc = 0;
+      this.tickTimer = 0;
+      return;
+    }
+    const danger = this.holeDanger;
+    this.peelAcc += BLACK_HOLE.peelRate * danger * dt;
+    while (this.peelAcc >= 1) {
+      this.peelAcc--;
+      const px = this.rocketPixel();
+      this.streamInto(hole, px.x, px.y, BLACK_HOLE.peelSpeed * rand(0.7, 1.2), px.color);
+    }
+    this.tickTimer -= dt;
+    if (this.tickTimer <= 0) {
+      buzz('pull');
+      this.tickTimer = BLACK_HOLE.tickSlow + (BLACK_HOLE.tickFast - BLACK_HOLE.tickSlow) * danger;
+    }
+  }
+
+  // A random lit pixel of the rocket sprite, in screen coordinates.
+  private rocketPixel(): { x: number; y: number; color: string } {
+    for (;;) {
+      const j = Math.floor(Math.random() * ROCKET_MAP.length);
+      const i = Math.floor(Math.random() * ROCKET_MAP[j].length);
+      const color = ROCKET_COLORS[ROCKET_MAP[j][i]];
+      if (color) return { x: Math.round(this.rocket.x) + i, y: Math.round(this.rocket.y) + j, color };
+    }
+  }
+
+  // A pixel flying straight into a hole's center, gone as it gets there.
+  private streamInto(h: BlackHole, x: number, y: number, speed: number, color: string): void {
+    const dx = h.cx - x;
+    const dy = h.cy - y;
+    const d = Math.hypot(dx, dy) || 1;
+    this.particles.add(x, y, (dx / d) * speed, (dy / d) * speed, d / speed, color, 0);
+  }
+
   private breakEgg(e: Egg): void {
     const color = e.kind === 'reverse' ? PALETTE.detail : PALETTE.rocket;
     for (let i = 0; i < EGG_DROP.breakBits; i++) {
@@ -480,6 +622,7 @@ export class Game {
   private bounceChicken(c: Chicken): void {
     const rocketMid = this.rocket.x + ROCKET.w / 2;
     c.tumble(c.x + CHICKEN.w / 2 < rocketMid ? -1 : 1);
+    c.knocked = true;
     for (let i = 0; i < POWERUP.bounceFeathers; i++) {
       this.particles.add(c.x + CHICKEN.w / 2, c.y + CHICKEN.h / 2, rand(-50, 50), -rand(0, 80), rand(0.5, 0.9), PALETTE.rocket);
     }
@@ -499,6 +642,7 @@ export class Game {
     }
 
     this.hits++;
+    this.hurtTimer = HURT.time;
     this.sinceChickenHit = 0;
     this.immunity = LIVES.immunity;
     this.dazeTimer = DAZE.duration;
@@ -533,19 +677,33 @@ export class Game {
     this.popups.add(`+${NEAR_MISS.points}`, px, this.rocket.y - 2);
   }
 
-  private die(cause: DeathCause): void {
+  private die(cause: DeathCause, hole?: BlackHole): void {
     this.state = 'dying';
     this.deathCause = cause;
     this.stateTimer = DEATH.duration;
     this.clearEffects();
     this.shieldTimer = 0;
     this.timeTimer = 0;
-    this.shake.add(DEATH.shake, DEATH.shakeTime);
+    this.holeDanger = 0;
     this.sound.stopMusic();
-    this.sound.play('crash');
     buzz('crash');
-    // The rocket breaks into its own pixels.
     const x0 = Math.round(this.rocket.x);
+    // Swallowed: every pixel of the rocket streams into the core instead of flying apart.
+    if (hole) {
+      this.sound.play('swallow');
+      ROCKET_MAP.forEach((row, j) => {
+        [...row].forEach((ch, i) => {
+          const color = ROCKET_COLORS[ch];
+          const speed = rand(BLACK_HOLE.implodeSpeedMin, BLACK_HOLE.implodeSpeedMax);
+          if (color) this.streamInto(hole, x0 + i, Math.round(this.rocket.y) + j, speed, color);
+        });
+      });
+      return;
+    }
+    this.shake.add(DEATH.shake, DEATH.shakeTime);
+    this.sound.play('crash');
+    // The rocket breaks into its own pixels.
+
     ROCKET_MAP.forEach((row, j) => {
       [...row].forEach((ch, i) => {
         const color = ROCKET_COLORS[ch];
@@ -577,6 +735,7 @@ export class Game {
       return;
     }
     this.mars.render(ctx, this.time);
+    for (const h of this.holes) h.render(ctx);
     for (const a of this.asteroids) a.render(ctx);
     for (const p of this.pickups) p.render(ctx);
     this.starTrails.render(ctx, this.frame);
@@ -599,12 +758,14 @@ export class Game {
       return;
     }
     this.renderPowerTimers(ctx);
+    this.renderHurt(ctx);
     renderHud(ctx, {
       score: this.score,
       hits: this.hits,
       reversed: this.rocket.reversed,
       dazed: this.dazeTimer > 0,
       heartsBlink: this.state === 'doomed',
+      lostBlink: this.hurtTimer > 0,
       frame: this.frame,
     });
     if (this.pause !== 'off') renderPause(ctx, this.pauseTime, this.countdownLeft, this.sound.muted);
@@ -616,6 +777,8 @@ export class Game {
       const fade = this.wobbleTimer / DAZE.shakeTime;
       wobble = Math.round(Math.sin(this.frame * 0.9) * DAZE.shake * Math.min(1, fade));
     }
+    // Shivers near a black hole's core, a pixel either way.
+    if (this.holeDanger > 0.3 && Math.random() < this.holeDanger) wobble += Math.random() < 0.5 ? -BLACK_HOLE.shiver : BLACK_HOLE.shiver;
     this.rocket.render(ctx, this.frame, wobble);
 
     // Shield: a ring of pixels circling the rocket, blinking as it runs out.
@@ -653,6 +816,20 @@ export class Game {
         ctx.fillRect(Math.round(cx + Math.cos(a) * 6), Math.round(cy + Math.sin(a) * 2), 1, 1);
       }
     }
+  }
+
+  // A blinking orange frame around the play area, right after a heart is lost.
+  private renderHurt(ctx: CanvasRenderingContext2D): void {
+    if (this.hurtTimer <= 0) return;
+    const elapsed = HURT.time - this.hurtTimer;
+    if (Math.floor(elapsed / HURT.blink) % 2) return;
+    const b = HURT.border;
+    const top = HUD.playTop;
+    ctx.fillStyle = PALETTE.detail;
+    ctx.fillRect(0, top, VIEW.w, b);
+    ctx.fillRect(0, VIEW.h - b, VIEW.w, b);
+    ctx.fillRect(0, top, b, VIEW.h - top);
+    ctx.fillRect(VIEW.w - b, top, b, VIEW.h - top);
   }
 
   // Thin countdown lines along the bottom edge: cream for the shield, orange for TIME.

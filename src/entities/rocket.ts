@@ -1,4 +1,4 @@
-import { PALETTE, ROCKET, VIEW } from '../config';
+import { BLACK_HOLE, PALETTE, ROCKET, VIEW } from '../config';
 import type { Input } from '../input';
 import { makeSprite, ROCKET_COLORS, ROCKET_MAP } from '../sprites';
 
@@ -20,8 +20,15 @@ export class Rocket {
   reversed = false;
   // Share of normal speed; below 1 while dazed by a chicken.
   speedScale = 1;
+  // Px offset of the target toward a black hole, set by the game every frame.
+  pullX = 0;
+  pullY = 0;
+  private touchTime = Infinity; // s since the finger last went down
 
   reset(): void {
+    this.pullX = 0;
+    this.pullY = 0;
+    this.touchTime = Infinity;
     this.x = START_X;
     this.y = ROCKET.startY;
     this.reversed = false;
@@ -31,21 +38,29 @@ export class Rocket {
   update(dt: number, input: Input): void {
     const scale = this.speedScale;
     if (input.pointerX !== null && input.pointerY !== null) {
+      this.touchTime = this.touchTime === Infinity ? 0 : this.touchTime + dt;
       const fingerX = this.reversed ? VIEW.w - input.pointerX : input.pointerX;
-      const tx = fingerX - ROCKET.w / 2;
-      const ty = input.pointerY - ROCKET.fingerOffset - ROCKET.h / 2;
+      const tx = fingerX - ROCKET.w / 2 + this.pullX;
+      const ty = input.pointerY - ROCKET.fingerOffset - ROCKET.h / 2 + this.pullY;
       // Frame-rate independent ease toward the finger, capped at max speed in any direction.
       const ease = 1 - Math.pow(1 - ROCKET.follow * scale, dt * 60);
       const dx = (tx - this.x) * ease;
       const dy = (ty - this.y) * ease;
-      const maxStep = ROCKET.maxSpeed * scale * dt;
+      // Eases in from catchSpeed to maxSpeed after a new touch, so it never jumps across.
+      const t = Math.min(1, this.touchTime / ROCKET.catchTime);
+      const top = ROCKET.catchSpeed + (ROCKET.maxSpeed - ROCKET.catchSpeed) * t * t * (3 - 2 * t);
+      const maxStep = top * scale * dt;
       const k = Math.min(1, maxStep / (Math.hypot(dx, dy) || 1));
       this.x += dx * k;
       this.y += dy * k;
-    } else if (input.keyDir !== 0 || input.keyDirY !== 0) {
+    } else {
+      this.touchTime = Infinity;
       const dir = this.reversed ? -input.keyDir : input.keyDir;
       this.x += dir * ROCKET.keySpeed * scale * dt;
       this.y += input.keyDirY * ROCKET.keySpeed * scale * dt;
+      // Without a finger holding it, the rocket drifts into a black hole's pull.
+      this.x += this.pullX * BLACK_HOLE.driftRate * dt;
+      this.y += this.pullY * BLACK_HOLE.driftRate * dt;
     }
     this.x = Math.max(0, Math.min(MAX_X, this.x));
     this.y = Math.max(ROCKET.yMin, Math.min(ROCKET.yMax, this.y));

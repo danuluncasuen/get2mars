@@ -22,6 +22,10 @@ export const ROCKET = {
   yMax: 124,
   fingerOffset: 0, // px the rocket's center sits above the finger (8 and 16 both felt too far)
   maxSpeed: 300, // px/s when following a finger
+  // Putting a finger back down: the rocket glides over instead of jumping, its top speed
+  // ramping from catchSpeed up to maxSpeed over catchTime.
+  catchSpeed: 70,
+  catchTime: 0.4,
   follow: 0.35, // fraction of the gap to the finger closed per 1/60 s
   keySpeed: 140, // px/s with the arrow keys
   dazedFlameFrames: 3, // flame sputters this fast while dazed
@@ -46,14 +50,14 @@ export const HUD = {
 } as const;
 
 export const ASTEROID = {
-  radius: 14, // drawn size, about 29 px wide
-  hitRadius: 12, // a little forgiving
+  radius: 12, // drawn size, about 25 px wide (14 made some pairs near impossible)
+  hitRadius: 10, // a little forgiving
   laneMin: 16, // lane center range
   laneMax: 56,
   spawnY: -30,
   despawnY: 160,
   firstSpawn: 2, // seconds into a run
-  minGap: 14, // two lanes must leave at least this much free space
+  minGap: 18, // two lanes must leave at least this much free space
   pairChance: 0.35, // chance to drop two at once when allowed
   retryDelay: 0.25, // wait before retrying a blocked spawn
   shakeRange: 20, // shake while this close vertically to the rocket
@@ -133,6 +137,14 @@ export const CHICKEN = {
 } as const;
 
 // Chicken hit: the rocket is dazed and flies slow. A new hit restarts the timer.
+// Losing a heart: an orange frame flashes around the screen edge (caught out of the corner
+// of your eye), and the lost heart flickers.
+export const HURT = {
+  time: 0.6, // s
+  blink: 0.1, // s per on/off
+  border: 2, // px
+} as const;
+
 export const DAZE = {
   duration: 2.5,
   speed: 0.4, // share of normal speed and responsiveness
@@ -158,6 +170,7 @@ export const UNLOCK = {
   bouncers: 25,
   divers: 45,
   eggLayers: 90,
+  blackHoles: 120,
 } as const;
 
 export const UNLOCK_NAMES: Record<keyof typeof UNLOCK, string> = {
@@ -165,7 +178,47 @@ export const UNLOCK_NAMES: Record<keyof typeof UNLOCK, string> = {
   bouncers: 'BOUNCE',
   divers: 'DIVE',
   eggLayers: 'EGGS',
+  blackHoles: 'GRAVITY',
 };
+
+// A black hole opens at one side of the rocket's band, pulls the rocket toward it, then
+// closes. Flying into its core is a crash; a shield collapses it instead.
+export const BLACK_HOLE = {
+  intervalMin: 14, // s between holes once unlocked
+  intervalMax: 20,
+  openTime: 0.8, // grows in (harmless, the warning)
+  lifeTime: 5, // fully open
+  closeTime: 0.6,
+  xs: [9, 63], // center x on the left or right side
+  yMin: 84, // center y range, inside the rocket's band
+  yMax: 116,
+  coreRadius: 4, // navy hole; touching it crashes
+  diskRx: 9, // the accretion disk, a flat ring of dots
+  diskRy: 3,
+  diskDots: 12,
+  diskSpin: 3, // rad/s
+  range: 40, // px from the center where the pull starts
+  maxPull: 10, // px the rocket is dragged off the finger at the core's edge
+  driftRate: 3, // per s: without a finger, the rocket drifts at pull * driftRate px/s
+  // Close in, the rocket starts coming apart: pixels peel off into the core, it shivers and
+  // the phone ticks, all stronger the closer it gets.
+  dangerRange: 22, // px from the center (rocket center) where this starts
+  peelRate: 60, // pixels per s at the core's edge
+  peelSpeed: 30, // px/s the pixels fly in (slow enough to see them go)
+  shiver: 1, // px of shake at the core's edge
+  tickSlow: 0.35, // s between haptic ticks at the zone's edge…
+  tickFast: 0.1, // …and at the core's edge
+  implodeSpeedMin: 10, // px/s: falling in, the rocket's pixels stream into the core
+  implodeSpeedMax: 35,
+  specks: 6, // cream specks spiralling in
+  speckRadius: 18,
+  // Tumbling chickens get dragged in too; one knocked in off the shield scores.
+  chickenPull: 1500, // px/s² at the center, fading to 0 at range
+  chickenDrag: 5, // per s at the center: bleeds speed so chickens spiral in instead of slingshotting
+  swallowRadius: 7, // px from the center to the chicken's center
+  chickenPoints: 200,
+  chickenBits: 14, // pixels it streams into the core as
+} as const;
 
 // Lines of small stars that sway across lanes: +10 each, +50 for the whole line.
 export const STAR_TRAIL = {
@@ -243,7 +296,7 @@ export const LIVES = {
 // Mars rises into the top-right corner from behind the HUD as the run goes on, drawn as a
 // 50% orange/navy checker so it reads as far-off scenery, not as something that can hit you.
 export const MARS = {
-  cx: 66, // center, mostly off screen and behind the HUD
+  cx: 6, // center, mostly off screen and behind the HUD; top-left keeps the mute button clear
   cy: 8,
   radiusStart: 6, // hidden behind the HUD at first
   radiusMax: 26, // size cap: it never takes over the screen

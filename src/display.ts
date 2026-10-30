@@ -22,6 +22,9 @@ export class Display {
     this.ctx.imageSmoothingEnabled = false;
     this.resize();
     window.addEventListener('resize', () => this.resize());
+    // iOS fills in the safe-area insets after the first layout, which resizes the canvas
+    // without a window resize. Watching the canvas itself catches that.
+    new ResizeObserver(() => this.resize()).observe(screen);
   }
 
   resize(): void {
@@ -50,12 +53,15 @@ export class Display {
     );
   }
 
-  // Converts a pointer position (CSS pixels) to logical game pixels.
+  // Converts a pointer position (CSS pixels) to logical game pixels. Goes through the canvas's
+  // actual on-screen size, so taps stay on target even if a resize hasn't been handled yet.
   toLogical(clientX: number, clientY: number): { x: number; y: number } {
     const rect = this.screen.getBoundingClientRect();
+    const kx = this.screen.width / (rect.width || 1);
+    const ky = this.screen.height / (rect.height || 1);
     return {
-      x: ((clientX - rect.left) * this.dpr - this.offsetX) / this.scale,
-      y: ((clientY - rect.top) * this.dpr - this.offsetY) / this.scale,
+      x: ((clientX - rect.left) * kx - this.offsetX) / this.scale,
+      y: ((clientY - rect.top) * ky - this.offsetY) / this.scale,
     };
   }
 }

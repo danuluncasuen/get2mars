@@ -20,6 +20,7 @@ export class Chicken {
   state: 'hovering' | 'flying' | 'tumbling' = 'flying';
   dead = false;
   hoverLeft = 0; // s of hovering left before a diver dives
+  knocked = false; // bounced off the shield: worth points if it ends up in a black hole
   private dir: number;
   private age = 0;
   private bounces: number;
@@ -74,6 +75,13 @@ export class Chicken {
     this.vx = away * CHICKEN.tumbleVx;
     this.vy = CHICKEN.tumbleVy;
     this.carriesEgg = false;
+  }
+
+  // Drags a tumbling chicken off course, e.g. toward a black hole. a: px/s², drag: share of speed lost per s.
+  accelerate(ax: number, ay: number, drag: number, dt: number): void {
+    const keep = Math.max(0, 1 - drag * dt);
+    this.vx = (this.vx + ax * dt) * keep;
+    this.vy = (this.vy + ay * dt) * keep;
   }
 
   // True once, when a carried egg should drop: a moment after the chicken shows up over the

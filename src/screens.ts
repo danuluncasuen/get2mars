@@ -67,6 +67,9 @@ export function renderGameOver(ctx: CanvasRenderingContext2D, g: GameOverInfo): 
   if (g.cause === 'chicken') {
     text(ctx, 'FOWL', 34, PALETTE.detail);
     text(ctx, 'PLAY', 46, PALETTE.rocket);
+  } else if (g.cause === 'hole') {
+    text(ctx, 'SUCKED', 34, PALETTE.detail);
+    text(ctx, 'IN', 46, PALETTE.rocket);
   } else {
     text(ctx, 'GAME', 34, PALETTE.detail);
     text(ctx, 'OVER', 46, PALETTE.detail);

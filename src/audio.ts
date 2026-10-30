@@ -16,6 +16,8 @@ export type Sfx =
   | 'slowOn'
   | 'slowOff'
   | 'blip'
+  | 'hole'
+  | 'swallow'
   | 'star'
   | 'trail'
   | 'dive'
@@ -108,8 +110,25 @@ export class Sound {
   toggleMute(): void {
     this.muted = !this.muted;
     saveMuted(this.muted);
-    if (this.master && this.ctx) this.master.gain.setValueAtTime(this.muted ? 0 : AUDIO.volume, this.ctx.currentTime);
-    if (!this.muted) this.play('blip');
+    if (this.master && this.ctx) {
+      // Set the value directly too: a scheduled change can get lost while the context is suspended.
+      const g = this.master.gain;
+      g.cancelScheduledValues(this.ctx.currentTime);
+      g.value = this.muted ? 0 : AUDIO.volume;
+    }
+    if (this.muted) return;
+    // While paused the audio is frozen, so wake it just long enough for the blip to confirm.
+    if (this.paused && this.ctx) {
+      const ctx = this.ctx;
+      ctx.resume().then(() => {
+        this.play('blip');
+        setTimeout(() => {
+          if (this.paused) ctx.suspend().catch(() => {});
+        }, 150);
+      }).catch(() => {});
+      return;
+    }
+    this.play('blip');
   }
 
   // n: for 'star', how many stars of this trail were taken before it (raises the pitch).
@@ -185,6 +204,16 @@ export class Sound {
         break;
       case 'golden':
         [79, 84, 88, 91, 96].forEach((note, i) => this.tone('square', hz(note), hz(note), 0.08, 0.08, i * 0.06));
+        break;
+      case 'hole':
+        // A deep swoop down, with a fainter echo of it sinking further.
+        this.tone('triangle', 330, 45, 0.9, 0.35);
+        this.tone('square', 165, 40, 0.7, 0.05, 0.15);
+        break;
+      case 'swallow':
+        // Falling in: a long slide down into nothing, with a low rush.
+        this.tone('triangle', 900, 30, 0.8, 0.35);
+        this.noise(0.6, 0.3, 1200, 80);
         break;
       case 'announce':
         this.tone('square', hz(76), hz(76), 0.08, 0.09);

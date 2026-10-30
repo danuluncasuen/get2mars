@@ -1,12 +1,13 @@
 import { Capacitor } from '@capacitor/core';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
 
-export type BuzzKind = 'star' | 'nearMiss' | 'chicken' | 'egg' | 'shieldPop' | 'crash';
+export type BuzzKind = 'star' | 'nearMiss' | 'pull' | 'chicken' | 'egg' | 'shieldPop' | 'crash';
 
 // Native feel, softest first. 'selection' is the tiny tick iOS uses for pickers.
 const NATIVE: Record<BuzzKind, 'selection' | ImpactStyle> = {
   star: 'selection',
   nearMiss: 'selection',
+  pull: 'selection',
   chicken: ImpactStyle.Light,
   egg: ImpactStyle.Light,
   shieldPop: ImpactStyle.Medium,
@@ -17,6 +18,7 @@ const NATIVE: Record<BuzzKind, 'selection' | ImpactStyle> = {
 const WEB: Record<BuzzKind, number> = {
   star: 5,
   nearMiss: 8,
+  pull: 5,
   chicken: 15,
   egg: 15,
   shieldPop: 25,

@@ -8,13 +8,13 @@ const HEART_OFF_INVERTED = makeSprite(HEART_EMPTY, { X: PALETTE.bg });
 const SWAP = makeSprite(SWAP_MAP, { X: PALETTE.detail });
 const FEATHER = makeSprite(FEATHER_MAP, { X: PALETTE.detail });
 
-// Pause bars at x 3–5, score fills x 9–39; the effect icon and three hearts share the rest.
-const PAUSE_X = 3;
-const SCORE_X = 9;
-const SWAP_X = 42;
-const HEART_X = 51; // hearts are 5 px wide with a 2 px gap, ending at x 69
-const HEART_STEP = 7;
-const ICON_Y = 5;
+// One row, left to right: pause 2–7, score 11–41, effect icon 43–49, hearts 52–68.
+const PAUSE_X = 2; // two 2 px bars with a 2 px gap
+const SCORE_X = 11;
+const SWAP_X = 43;
+const HEART_X = 52; // hearts are 5 px wide with a 1 px gap
+const HEART_STEP = 6;
+const ICON_Y = 6; // 5 px icons centered on the 7 px digits (y 5–11)
 
 export interface HudState {
   score: number;
@@ -22,6 +22,7 @@ export interface HudState {
   reversed: boolean;
   dazed: boolean;
   heartsBlink: boolean;
+  lostBlink: boolean; // the heart just lost flickers while true
   frame: number;
 }
 
@@ -41,9 +42,9 @@ export function renderHud(ctx: CanvasRenderingContext2D, s: HudState): void {
   ctx.fillStyle = text;
   const shown = Math.min(SCORE.maxShown, Math.floor(s.score));
   ctx.fillText(String(shown).padStart(4, '0'), SCORE_X, 12);
-  // The whole bar is the pause button; two bars mark it.
-  ctx.fillRect(PAUSE_X, ICON_Y, 1, 7);
-  ctx.fillRect(PAUSE_X + 2, ICON_Y, 1, 7);
+  // The whole bar is the pause button; two bars, as tall as the hearts, mark it.
+  ctx.fillRect(PAUSE_X, ICON_Y, 2, 5);
+  ctx.fillRect(PAUSE_X + 4, ICON_Y, 2, 5);
 
   // Blinking icon for the effect; with both on, they take turns.
   if (affected && Math.floor(s.frame / 8) % 2 === 0) {
@@ -55,6 +56,7 @@ export function renderHud(ctx: CanvasRenderingContext2D, s: HudState): void {
   const empty = affected ? HEART_OFF_INVERTED : HEART_OFF;
   // Hearts left stay full from the left; lost ones empty from the right.
   for (let i = 0; i < LIVES.max; i++) {
-    ctx.drawImage(i < LIVES.max - s.hits ? HEART_ON : empty, HEART_X + i * HEART_STEP, ICON_Y);
+    const lit = i < LIVES.max - s.hits || (s.lostBlink && i === LIVES.max - s.hits && Math.floor(s.frame / 4) % 2 === 0);
+    ctx.drawImage(lit ? HEART_ON : empty, HEART_X + i * HEART_STEP, ICON_Y);
   }
 }

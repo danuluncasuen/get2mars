@@ -2,10 +2,10 @@ import { MARS, PALETTE } from '../config';
 
 // Craters as [x, y, radius], in fractions of the planet's radius.
 const CRATERS = [
-  [-0.45, 0.35, 0.22],
-  [-0.1, 0.6, 0.14],
-  [-0.6, -0.05, 0.12],
-  [0.15, 0.25, 0.1],
+  [0.45, 0.35, 0.22],
+  [0.1, 0.6, 0.14],
+  [0.6, -0.05, 0.12],
+  [-0.15, 0.25, 0.1],
 ];
 
 // Renders Mars at radius r into its own canvas, centered.
@@ -24,8 +24,8 @@ function makeMars(r: number): HTMLCanvasElement {
       if (d > r) continue;
       // The checker is anchored to the screen grid (the planet's offset is even), so it never shimmers.
       const checker = (x + y) % 2 === 0;
-      // Lit rim on the edge facing into the screen (bottom-left), dithered cream.
-      if (d > r - 1.5 && dx < 0 && dy > 0) {
+      // Lit rim on the edge facing into the screen (bottom-right), dithered cream.
+      if (d > r - 1.5 && dx > 0 && dy > 0) {
         if (checker) {
           ctx.fillStyle = PALETTE.rocket;
           ctx.fillRect(x, y, 1, 1);
@@ -43,7 +43,7 @@ function makeMars(r: number): HTMLCanvasElement {
   return canvas;
 }
 
-// Dithered Mars in the top-right corner, growing with the run's time up to a size cap.
+// Dithered Mars in the top-left corner, growing with the run's time up to a size cap.
 export class Mars {
   private radius = -1;
   private sprite: HTMLCanvasElement | null = null;
