@@ -30,16 +30,21 @@ const STAR_STEPS = [0, 2, 4, 7, 9, 12, 14, 16, 19, 21];
 // Note number to Hz (69 = A4).
 const hz = (note: number) => 440 * Math.pow(2, (note - 69) / 12);
 
-// Music: a 4-bar loop in A minor, one step per eighth note.
-const BAR_ROOTS = [45, 41, 43, 40]; // A2 F2 G2 E2
-const BASS_STEPS = [0, 0, 12, 0, 0, 12, 7, 12]; // semitones above the bar's root
-const LEAD_CHORDS = [
-  [69, 72, 76], // Am
-  [65, 69, 72], // F
-  [67, 71, 74], // G
-  [64, 68, 71], // E
+// Music: a slow, spacey 4-bar loop in A minor, one step per eighth note. A chord pad swells
+// in each bar, a soft bass pulses on the half notes, and sparse high blips echo into the distance.
+const BAR_ROOTS = [33, 29, 26, 28]; // A1 F1 D1 E1
+const PADS = [
+  [57, 60, 64, 71], // Am9: A C E B
+  [53, 57, 60, 64], // Fmaj7: F A C E
+  [50, 53, 57, 64], // Dm9: D F A E
+  [52, 57, 59, 64], // Esus4: E A B E
 ];
-const LEAD_STEPS = [0, 1, 2, 1, 2, 1, 0, -1]; // chord tone index, -1 = rest
+// Pad tone index for the echoing blips, one octave above the pad, -1 = rest. Two patterns
+// alternate every loop so the blips don't repeat too obviously.
+const BLIPS = [
+  [0, -1, -1, 2, -1, 3, -1, -1],
+  [-1, 1, -1, -1, 3, -1, 2, -1],
+];
 
 // Every sound is synthesized: square and triangle waves plus filtered noise. No audio files.
 export class Sound {
@@ -47,6 +52,7 @@ export class Sound {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
   private music: GainNode | null = null;
+  private echo: GainNode | null = null; // send: whatever goes in here repeats and fades
   private noiseBuffer: AudioBuffer | null = null;
   private playing = false;
   private nextStep = 0; // audio clock time of the next music step
@@ -65,6 +71,20 @@ export class Sound {
       this.music = ctx.createGain();
       this.music.gain.value = AUDIO.musicVolume;
       this.music.connect(this.master);
+      // Echo: delay -> darker filter -> feedback back into the delay, all into the music bus.
+      this.echo = ctx.createGain();
+      const delay = ctx.createDelay(1);
+      delay.delayTime.value = AUDIO.echoTime;
+      const dark = ctx.createBiquadFilter();
+      dark.type = 'lowpass';
+      dark.frequency.value = AUDIO.echoCutoff;
+      const feedback = ctx.createGain();
+      feedback.gain.value = AUDIO.echoFeedback;
+      this.echo.connect(delay);
+      delay.connect(dark);
+      dark.connect(feedback);
+      feedback.connect(delay);
+      dark.connect(this.music);
       // One second of white noise, reused by every noisy effect.
       this.noiseBuffer = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
       const data = this.noiseBuffer.getChannelData(0);
@@ -162,14 +182,24 @@ export class Sound {
   }
 
   startMusic(): void {
-    if (!this.ctx) return;
+    if (!this.ctx || !this.music) return;
     this.playing = true;
     this.step = 0;
     this.nextStep = this.ctx.currentTime + 0.1;
+    const g = this.music.gain;
+    g.cancelScheduledValues(this.ctx.currentTime);
+    g.setValueAtTime(AUDIO.musicVolume, this.ctx.currentTime);
   }
 
+  // Pads ring for a whole bar, so fade the music out instead of cutting it.
   stopMusic(): void {
+    if (!this.ctx || !this.music || !this.playing) return;
     this.playing = false;
+    const t = this.ctx.currentTime;
+    const g = this.music.gain;
+    g.cancelScheduledValues(t);
+    g.setValueAtTime(g.value, t);
+    g.linearRampToValueAtTime(0, t + AUDIO.musicFade);
   }
 
   // Call every frame; schedules music a little ahead. tempo: 1 = normal speed.
@@ -187,11 +217,46 @@ export class Sound {
 
   private scheduleStep(at: number, len: number): void {
     const bar = Math.floor(this.step / 8) % BAR_ROOTS.length;
+    const loop = Math.floor(this.step / (8 * BAR_ROOTS.length));
     const i = this.step % 8;
     const delay = at - this.ctx!.currentTime;
-    this.tone('triangle', hz(BAR_ROOTS[bar] + BASS_STEPS[i]), 0, len * 0.9, 0.35, delay, this.music!);
-    const lead = LEAD_STEPS[i];
-    if (lead >= 0) this.tone('square', hz(LEAD_CHORDS[bar][lead]), 0, len * 0.5, 0.05, delay, this.music!);
+    const music = this.music!;
+    // A new chord pad swells in at the top of each bar and fades by its end.
+    if (i === 0) for (const note of PADS[bar]) this.pad(hz(note), at, len * 8);
+    // Soft bass pulse on the half notes, two octaves under the pad.
+    if (i % 4 === 0) this.tone('triangle', hz(BAR_ROOTS[bar] + 12), 0, len * 3.5, 0.3, delay, music);
+    // Sparse high blips, sent into the echo so they trail off into space.
+    const blip = BLIPS[loop % BLIPS.length][i];
+    if (blip >= 0) {
+      const f = hz(PADS[bar][blip] + 12);
+      this.tone('square', f, 0, len * 0.6, 0.035, delay, music);
+      this.tone('square', f, 0, len * 0.6, 0.05, delay, this.echo!);
+    }
+  }
+
+  // A slow-swelling chord tone: two detuned triangles through a low-pass, so it shimmers.
+  private pad(freq: number, at: number, dur: number): void {
+    const c = this.ctx!;
+    const t = Math.max(at, c.currentTime);
+    const filter = c.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = AUDIO.padCutoff;
+    const gain = c.createGain();
+    const peak = 0.05;
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.linearRampToValueAtTime(peak, t + AUDIO.padAttack);
+    gain.gain.setValueAtTime(peak, t + dur * 0.6);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    filter.connect(gain).connect(this.music!);
+    for (const cents of [-AUDIO.padDetune / 2, AUDIO.padDetune / 2]) {
+      const osc = c.createOscillator();
+      osc.type = 'triangle';
+      osc.frequency.value = freq;
+      osc.detune.value = cents;
+      osc.connect(filter);
+      osc.start(t);
+      osc.stop(t + dur + 0.05);
+    }
   }
 
   // to: end frequency for a slide, or 0 to hold the pitch.

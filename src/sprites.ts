@@ -108,8 +108,9 @@ export const CHICKEN_B: SpriteMap = [
 
 export const CHICKEN_COLORS: ColorKey = { B: PALETTE.rocket, O: PALETTE.detail, E: PALETTE.bg };
 
-export const EGG_FULL: SpriteMap = ['.XX.', 'XXXX', 'XXXX', 'XXXX', '.XX.'];
-export const EGG_EMPTY: SpriteMap = ['.XX.', 'X..X', 'X..X', 'X..X', '.XX.'];
+// HUD lives: a full heart, and the outline left when one is lost.
+export const HEART_FULL: SpriteMap = ['.X.X.', 'XXXXX', 'XXXXX', '.XXX.', '..X..'];
+export const HEART_EMPTY: SpriteMap = ['.X.X.', 'X.X.X', 'X...X', '.X.X.', '..X..'];
 
 export const SWAP_MAP: SpriteMap = ['....X..', 'XXXXXX.', '....X..', '..X....', '.XXXXXX', '..X....'];
 

@@ -6,7 +6,7 @@ import {
   DAZE,
   DEATH,
   EGG_DROP,
-  EGGS,
+  LIVES,
   MUTE_BUTTON,
   NEAR_MISS,
   PALETTE,
@@ -25,6 +25,7 @@ import {
 import { Asteroid } from './entities/asteroid';
 import { Chicken } from './entities/chicken';
 import { Egg, randomEggKind } from './entities/egg';
+import { Mars } from './entities/mars';
 import { Pickup } from './entities/pickup';
 import { Rocket } from './entities/rocket';
 import { Starfield } from './entities/stars';
@@ -45,7 +46,7 @@ import { StarTrails } from './systems/startrails';
 import { Yolk } from './systems/yolk';
 import { loadBest, saveBest } from './storage';
 
-// doomed: third egg filled, eggs blink before the rocket explodes.
+// doomed: last heart lost, hearts blink before the rocket explodes.
 type State = 'title' | 'playing' | 'doomed' | 'dying' | 'over';
 export type DeathCause = 'asteroid' | 'chicken';
 
@@ -62,9 +63,9 @@ export class Game {
   private best = loadBest();
   private newBest = false;
 
-  // Chicken trouble. `eggs` are the strike counter in the HUD; falling eggs are `droppedEggs`.
-  private eggs = 0;
-  private sinceChickenHit = 0; // drives egg decay
+  // Chicken trouble. `hits` are lost hearts; falling eggs are `droppedEggs`.
+  private hits = 0;
+  private sinceChickenHit = 0; // drives heart regen
   private immunity = 0;
   private dazeTimer = 0; // chicken hit: the rocket flies slow
   private reverseTimer = 0; // orange egg: left and right swap
@@ -77,6 +78,7 @@ export class Game {
   private readonly announced = new Set<keyof typeof UNLOCK>();
 
   private readonly stars = new Starfield();
+  private readonly mars = new Mars();
   private readonly rocket = new Rocket();
   private asteroids: Asteroid[] = [];
   private chickens: Chicken[] = [];
@@ -103,7 +105,7 @@ export class Game {
     this.state = 'playing';
     this.time = 0;
     this.score = 0;
-    this.eggs = 0;
+    this.hits = 0;
     this.sinceChickenHit = 0;
     this.immunity = 0;
     this.dazeTimer = 0;
@@ -229,9 +231,9 @@ export class Game {
     }
   }
 
-  // A CLEAR power-up would help: strikes, or an effect on the rocket.
+  // A CLEAR power-up would help: lost hearts, or an effect on the rocket.
   private get needsClear(): boolean {
-    return this.eggs > 0 || this.dazeTimer > 0 || this.reverseTimer > 0 || this.yolk.active;
+    return this.hits > 0 || this.dazeTimer > 0 || this.reverseTimer > 0 || this.yolk.active;
   }
 
   private updatePowerups(dt: number): void {
@@ -252,10 +254,10 @@ export class Game {
       this.reverseTimer = Math.max(0, this.reverseTimer - dt);
       this.rocket.reversed = this.reverseTimer > 0;
     }
-    if (this.eggs > 0) {
+    if (this.hits > 0) {
       this.sinceChickenHit += dt;
-      if (this.sinceChickenHit >= EGGS.decay) {
-        this.eggs--;
+      if (this.sinceChickenHit >= LIVES.regen) {
+        this.hits--;
         this.sinceChickenHit = 0;
       }
     }
@@ -328,7 +330,7 @@ export class Game {
       this.timeTimer = POWERUP.timeTime;
     }
     if (kind === 'eggs') {
-      this.eggs = 0;
+      this.hits = 0;
       this.sinceChickenHit = 0;
       this.clearEffects();
       this.yolk.clear();
@@ -438,9 +440,9 @@ export class Game {
       this.particles.add(fx, fy, rand(-60, 60), -rand(0, 96), rand(0.6, 1), color);
     }
 
-    this.eggs++;
+    this.hits++;
     this.sinceChickenHit = 0;
-    this.immunity = EGGS.immunity;
+    this.immunity = LIVES.immunity;
     this.dazeTimer = DAZE.duration;
     this.rocket.speedScale = DAZE.speed;
     this.wobbleTimer = DAZE.shakeTime;
@@ -448,12 +450,12 @@ export class Game {
     this.sound.play('chicken');
     buzz('chicken');
 
-    if (this.eggs >= EGGS.max) {
+    if (this.hits >= LIVES.max) {
       this.sound.play('doom');
       this.sound.stopMusic();
       this.state = 'doomed';
-      this.stateTimer = EGGS.doomTime;
-      this.wobbleTimer = EGGS.doomTime;
+      this.stateTimer = LIVES.doomTime;
+      this.wobbleTimer = LIVES.doomTime;
     }
   }
 
@@ -516,6 +518,7 @@ export class Game {
       renderTitle(ctx, this.screenTime, this.best, this.sound.muted);
       return;
     }
+    this.mars.render(ctx, this.time);
     for (const a of this.asteroids) a.render(ctx);
     for (const p of this.pickups) p.render(ctx);
     this.starTrails.render(ctx, this.frame);
@@ -540,10 +543,10 @@ export class Game {
     this.renderPowerTimers(ctx);
     renderHud(ctx, {
       score: this.score,
-      eggs: this.eggs,
+      hits: this.hits,
       reversed: this.rocket.reversed,
       dazed: this.dazeTimer > 0,
-      eggsBlink: this.state === 'doomed',
+      heartsBlink: this.state === 'doomed',
       frame: this.frame,
     });
   }

@@ -258,12 +258,13 @@ TITLE ──tap──▶ PLAYING ──fatal hit──▶ DYING (1.2 s) ──�
 
 ---
 
-## 6. Eggs (chicken strike counter)
+## 6. Hearts (chicken lives)
 
-- The HUD shows 5 egg slots (4 px wide, 1 px apart, x 46–69). Each chicken hit fills one.
-- **5 filled eggs = fatal**, exactly like an asteroid hit (death cause: chicken → "FOWL PLAY").
-- **Recovery:** if 8 s pass without a chicken hit, one egg empties. This repeats every 8 s until all are empty. Any hit resets the 8 s timer.
-- When the third egg fills: the eggs blink for 0.5 s, then the rocket explodes.
+- The HUD shows **3 hearts** (5 × 5, 2 px apart, x 51–69): full orange hearts for lives left, cream outlines for lost ones (navy while the bar is inverted). Hearts make it obvious that chicken hits matter. They replaced 3, then 5, egg slots.
+- Each chicken hit costs a heart. **Losing all 3 = fatal**, exactly like an asteroid hit (death cause: chicken → "FOWL PLAY").
+- **Recovery:** if 8 s pass without a chicken hit, one heart comes back. This repeats every 8 s until all are full. Any hit resets the 8 s timer.
+- When the last heart goes: the hearts blink for 0.5 s, then the rocket explodes.
+- CLEAR refills all hearts.
 
 ---
 
@@ -400,7 +401,7 @@ Put every number from sections 4–9 in `config.ts`. Optional: a `?debug` URL fl
 - [ ] Only the three palette colors appear (except text antialiasing).
 - [ ] No blurry pixels at any phone size.
 - [ ] Every asteroid shows its warning before it can reach the rocket.
-- [ ] An asteroid hit always ends the run. A chicken hit never does unless it fills the third egg.
+- [ ] An asteroid hit always ends the run. A chicken hit never does unless it takes the last heart.
 - [ ] Reversed controls clearly show in the HUD and last 2.5 s from the latest hit.
 - [ ] One egg empties after 8 s without a hit.
 - [ ] Near-miss bonus triggers at most once per asteroid.
@@ -415,7 +416,7 @@ Put every number from sections 4–9 in `config.ts`. Optional: a `?debug` URL fl
 ### Sound (`src/audio.ts`)
 - Everything is synthesized with Web Audio (square/triangle waves and filtered noise). No audio files.
 - Effects: start jingle, asteroid warning (two blips when a warning appears), near miss, chicken squawk, shield bounce, three-egg alarm, crash, game over, new best, pickup, shield pop, slow motion on/off.
-- Music: 4-bar A-minor loop (triangle bass, quiet square arpeggio) at 140 bpm, only during a run. It speeds up 15% by 120 s and drops to half speed during slow motion.
+- Music: a slow, spacey 4-bar loop in A minor at 96 bpm (140 bpm with a bouncing bass felt too arcade), only during a run. Each bar a chord pad (Am9, Fmaj7, Dm9, Esus4) swells in over 0.8 s from two slightly detuned triangles through a low-pass, for a slow shimmer. A soft triangle bass pulses on the half notes. Sparse high square blips go into an echo (0.47 s, darkening repeats). Two blip patterns alternate every loop. It speeds up 10% by 120 s, drops to half speed during TIME, and fades out over 0.8 s when a run ends. Music sits a little under the effects.
 - Audio starts on the first tap or key press (browsers require a user gesture).
 - Mute: speaker icon top-right on the title and game over screens (tap area x ≥ 52, y < 16), or the M key. Saved as `get2mars.muted`. On iPhone, the ringer switch also silences it.
 
@@ -429,12 +430,12 @@ Put every number from sections 4–9 in `config.ts`. Optional: a `?debug` URL fl
 |---|---|
 | Look | 9 × 9 box with a glyph (shield, clock, egg). Box and glyph swap cream/orange every 16 frames |
 | Spawn | First at 12 s, then every 12–20 s. Falls at 40 px/s, x ∈ [4, 59], away from lanes with an asteroid warning |
-| Kind | Shield or TIME, 50/50. When a CLEAR would help (strike eggs, dazed, reversed or yolk), 50% chance of a CLEAR instead |
+| Kind | Shield or TIME, 50/50. When a CLEAR would help (lost hearts, dazed, reversed or yolk), 50% chance of a CLEAR instead |
 | Collect | Rocket hitbox overlaps the box. Pickup chime and a popup (SHIELD, TIME, CLEAR) |
 
 - **Shield (10 s):** a ring of 10 rotating pixels around the rocket. Chickens bounce off without laying eggs, and bad falling eggs break on it; the shield stays up. An asteroid hit shatters the asteroid instead of the rocket and uses up the shield.
 - **TIME (5 s, was "Slow"):** asteroids, warnings, chickens, pickups, spawners and stars run at half speed. The rocket, score and every timer stay at full speed.
-- **CLEAR:** empties the strike eggs and ends dazed, reversed and yolk at once.
+- **CLEAR:** refills the hearts and ends dazed, reversed and yolk at once.
 - Active effects show as countdown lines on the bottom edge: cream (shield) at y 143, orange (TIME) at y 141. Both blink for their last 2 s.
 - Everything ends on death.
 
@@ -468,7 +469,7 @@ New things unlock one at a time during a run, each announced with a popup in the
 - **Orange egg (45%):** reversed controls for 3 s.
 - **Golden egg (10%, flashes cream/orange):** +200, or a free shield or TIME (50/50), with a jingle.
 - The shield breaks cream and orange eggs harmlessly. Golden eggs always pay out.
-- Falling eggs are separate from the HUD strike eggs.
+- Falling eggs are separate from the HUD hearts.
 
 ### Later ideas for the unlock schedule
 - Comet: a fast diagonal streak with a short warning at the screen edge.
@@ -477,7 +478,16 @@ New things unlock one at a time during a run, each announced with a popup in the
 
 ---
 
-## 16. Out of scope (later ideas)
+## 16. Mars on the horizon (built)
+
+- The game stays endless (it keeps the scoreboard meaningful). Mars shows progress instead of being a finish line.
+- Mars rises into the **top-right corner** from behind the HUD and the screen edge: center (66, 8), radius growing from 6 (hidden) to a cap of **26** over **180 s**, then staying. At full size it covers the corner down to about y 34, out of the middle lanes.
+- Drawn as a **50% orange/navy checker**, so it reads as far-off scenery. Solid orange stays reserved for things that hurt you. Craters are sparser patches (one pixel in four) and the lit rim on the lower-left edge is a cream checker.
+- The checker stays locked to the screen's pixel grid as the planet grows, so it never shimmers.
+
+---
+
+## 17. Out of scope (later ideas)
 
 - Palette changes as you progress (unlock new three-color palettes).
 - Dithered asteroid style as a palette or level variant.

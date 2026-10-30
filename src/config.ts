@@ -232,11 +232,22 @@ export const YOLK = {
   dripSpeed: 8, // px/s
 } as const;
 
-export const EGGS = {
-  max: 5, // strike eggs; a full set is fatal
-  decay: 8, // seconds without a hit to empty one egg
+// Chicken hits cost a heart; losing all of them is fatal.
+export const LIVES = {
+  max: 3,
+  regen: 8, // seconds without a hit to win one heart back
   immunity: 0.5, // no new chicken hits for this long after one
-  doomTime: 0.5, // eggs blink this long before the rocket explodes
+  doomTime: 0.5, // hearts blink this long before the rocket explodes
+} as const;
+
+// Mars rises into the top-right corner from behind the HUD as the run goes on, drawn as a
+// 50% orange/navy checker so it reads as far-off scenery, not as something that can hit you.
+export const MARS = {
+  cx: 66, // center, mostly off screen and behind the HUD
+  cy: 8,
+  radiusStart: 6, // hidden behind the HUD at first
+  radiusMax: 26, // size cap: it never takes over the screen
+  reachTime: 180, // s to grow to full size; the run (and the score) keeps going after
 } as const;
 
 export const SCREENS = {
@@ -249,9 +260,16 @@ export const SCREENS = {
 
 export const AUDIO = {
   volume: 0.6, // master
-  musicVolume: 0.5, // relative to master
-  bpm: 140, // music tempo at the start of a run
-  tempoRise: 0.15, // music gets this much faster by 120 s
+  musicVolume: 0.4, // relative to master; sits a little under the effects so warnings cut through
+  bpm: 96, // music tempo at the start of a run (140 felt too arcade)
+  tempoRise: 0.1, // music gets this much faster by 120 s
+  padAttack: 0.8, // s for each bar's chord pad to swell in
+  padDetune: 7, // cents between the pad's two oscillators: the slow shimmer
+  padCutoff: 1400, // Hz, low-pass on the pad so it sits behind the effects
+  echoTime: 0.47, // s, about a dotted eighth at 96 bpm
+  echoFeedback: 0.42,
+  echoCutoff: 2200, // Hz, each repeat gets darker
+  musicFade: 0.8, // s to fade the music out when a run ends
   mutedKey: 'get2mars.muted',
 } as const;
 

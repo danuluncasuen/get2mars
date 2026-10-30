@@ -1,25 +1,25 @@
-import { EGGS, HUD, PALETTE, SCORE, VIEW } from './config';
-import { EGG_EMPTY, EGG_FULL, FEATHER_MAP, makeSprite, SWAP_MAP } from './sprites';
+import { HUD, LIVES, PALETTE, SCORE, VIEW } from './config';
+import { FEATHER_MAP, HEART_EMPTY, HEART_FULL, makeSprite, SWAP_MAP } from './sprites';
 
-const EGG_ON = makeSprite(EGG_FULL, { X: PALETTE.detail });
-// Empty eggs are outlined in the bar's text color, which flips while an effect is on.
-const EGG_OFF = makeSprite(EGG_EMPTY, { X: PALETTE.rocket });
-const EGG_OFF_REVERSED = makeSprite(EGG_EMPTY, { X: PALETTE.bg });
+const HEART_ON = makeSprite(HEART_FULL, { X: PALETTE.detail });
+// Lost hearts are outlined in the bar's text color, which flips while an effect is on.
+const HEART_OFF = makeSprite(HEART_EMPTY, { X: PALETTE.rocket });
+const HEART_OFF_INVERTED = makeSprite(HEART_EMPTY, { X: PALETTE.bg });
 const SWAP = makeSprite(SWAP_MAP, { X: PALETTE.detail });
 const FEATHER = makeSprite(FEATHER_MAP, { X: PALETTE.detail });
 
-// Score fills x 3–34; the effect icon and five eggs share the rest.
-const SWAP_X = 37;
-const EGG_X = 46; // eggs are 4 px wide with a 1 px gap, ending at x 69
-const EGG_STEP = 5;
+// Score fills x 3–34; the effect icon and three hearts share the rest.
+const SWAP_X = 40;
+const HEART_X = 51; // hearts are 5 px wide with a 2 px gap, ending at x 69
+const HEART_STEP = 7;
 const ICON_Y = 5;
 
 export interface HudState {
   score: number;
-  eggs: number;
+  hits: number; // hearts lost
   reversed: boolean;
   dazed: boolean;
-  eggsBlink: boolean;
+  heartsBlink: boolean;
   frame: number;
 }
 
@@ -46,9 +46,10 @@ export function renderHud(ctx: CanvasRenderingContext2D, s: HudState): void {
     ctx.drawImage(showSwap ? SWAP : FEATHER, SWAP_X, ICON_Y - 1);
   }
 
-  if (s.eggsBlink && Math.floor(s.frame / 4) % 2) return;
-  const empty = affected ? EGG_OFF_REVERSED : EGG_OFF;
-  for (let i = 0; i < EGGS.max; i++) {
-    ctx.drawImage(i < s.eggs ? EGG_ON : empty, EGG_X + i * EGG_STEP, ICON_Y);
+  if (s.heartsBlink && Math.floor(s.frame / 4) % 2) return;
+  const empty = affected ? HEART_OFF_INVERTED : HEART_OFF;
+  // Hearts left stay full from the left; lost ones empty from the right.
+  for (let i = 0; i < LIVES.max; i++) {
+    ctx.drawImage(i < LIVES.max - s.hits ? HEART_ON : empty, HEART_X + i * HEART_STEP, ICON_Y);
   }
 }
