@@ -55,6 +55,7 @@ export class Sound {
   private echo: GainNode | null = null; // send: whatever goes in here repeats and fades
   private noiseBuffer: AudioBuffer | null = null;
   private playing = false;
+  private paused = false;
   private nextStep = 0; // audio clock time of the next music step
   private step = 0;
 
@@ -90,7 +91,18 @@ export class Sound {
       const data = this.noiseBuffer.getChannelData(0);
       for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
     }
-    if (this.ctx.state !== 'running') this.ctx.resume().catch(() => {});
+    if (this.ctx.state !== 'running' && !this.paused) this.ctx.resume().catch(() => {});
+  }
+
+  // Suspending freezes the audio clock, so the music picks up mid-bar on resume.
+  pause(): void {
+    this.paused = true;
+    this.ctx?.suspend().catch(() => {});
+  }
+
+  resume(): void {
+    this.paused = false;
+    this.ctx?.resume().catch(() => {});
   }
 
   toggleMute(): void {

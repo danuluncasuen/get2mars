@@ -11,6 +11,7 @@ export class Input {
   // Logical position of the latest unread tap; keyboard taps have no position.
   private tap: { x: number; y: number } | null = null;
   private muteKey = false;
+  private pauseKey = false;
   private readonly keys = new Set<string>();
 
   constructor(target: HTMLElement, display: Display) {
@@ -42,6 +43,7 @@ export class Input {
       }
       if (e.key === ' ' || e.key === 'Enter') this.tap = { x: -1, y: -1 };
       if (e.key === 'm' || e.key === 'M') this.muteKey = true;
+      if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') this.pauseKey = true;
       this.updateKeyDir();
     });
     window.addEventListener('keyup', (e) => {
@@ -68,6 +70,13 @@ export class Input {
     const m = this.muteKey;
     this.muteKey = false;
     return m;
+  }
+
+  // True once after P or Esc is pressed.
+  consumePauseKey(): boolean {
+    const p = this.pauseKey;
+    this.pauseKey = false;
+    return p;
   }
 
   private updateKeyDir(): void {

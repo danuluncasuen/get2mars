@@ -1,4 +1,4 @@
-import { HUD, MUTE_BUTTON, PALETTE, ROCKET, SCORE, SCREENS, TESTING, VIEW } from './config';
+import { HUD, MUTE_BUTTON, PALETTE, PAUSE, ROCKET, SCORE, SCREENS, TESTING, VIEW } from './config';
 import type { DeathCause } from './game';
 import { makeSprite, ROCKET_COLORS, ROCKET_MAP, SPEAKER_MAP, SPEAKER_MUTED_MAP } from './sprites';
 
@@ -84,4 +84,24 @@ export function renderGameOver(ctx: CanvasRenderingContext2D, g: GameOverInfo): 
   ctx.fillStyle = PALETTE.rocket;
   ctx.fillRect(12, 116, 48, 14);
   text(ctx, 'RETRY', 127, PALETTE.bg);
+}
+
+// Drawn over the frozen game. countdown: the number left before play resumes, or 0 while paused.
+export function renderPause(ctx: CanvasRenderingContext2D, time: number, countdown: number, muted: boolean): void {
+  const p = PAUSE.panel;
+  ctx.fillStyle = PALETTE.detail;
+  ctx.fillRect(p.x - 1, p.y - 1, p.w + 2, p.h + 2);
+  ctx.fillStyle = PALETTE.bg;
+  ctx.fillRect(p.x, p.y, p.w, p.h);
+  if (countdown > 0) {
+    ctx.font = "16px 'Press Start 2P'";
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = PALETTE.detail;
+    ctx.fillText(String(countdown), MID, p.y + p.h / 2 + 8);
+    return;
+  }
+  text(ctx, 'PAUSE', p.y + 14, PALETTE.detail);
+  ctx.drawImage(muted ? SPEAKER_MUTED : SPEAKER, PAUSE.mute.x, PAUSE.mute.y);
+  if (blinkOn(time)) text(ctx, 'TAP', p.y + p.h - 6, PALETTE.rocket);
 }

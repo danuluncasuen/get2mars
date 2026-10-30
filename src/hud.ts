@@ -8,8 +8,10 @@ const HEART_OFF_INVERTED = makeSprite(HEART_EMPTY, { X: PALETTE.bg });
 const SWAP = makeSprite(SWAP_MAP, { X: PALETTE.detail });
 const FEATHER = makeSprite(FEATHER_MAP, { X: PALETTE.detail });
 
-// Score fills x 3–34; the effect icon and three hearts share the rest.
-const SWAP_X = 40;
+// Pause bars at x 3–5, score fills x 9–39; the effect icon and three hearts share the rest.
+const PAUSE_X = 3;
+const SCORE_X = 9;
+const SWAP_X = 42;
 const HEART_X = 51; // hearts are 5 px wide with a 2 px gap, ending at x 69
 const HEART_STEP = 7;
 const ICON_Y = 5;
@@ -38,7 +40,10 @@ export function renderHud(ctx: CanvasRenderingContext2D, s: HudState): void {
   ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = text;
   const shown = Math.min(SCORE.maxShown, Math.floor(s.score));
-  ctx.fillText(String(shown).padStart(4, '0'), 3, 12);
+  ctx.fillText(String(shown).padStart(4, '0'), SCORE_X, 12);
+  // The whole bar is the pause button; two bars mark it.
+  ctx.fillRect(PAUSE_X, ICON_Y, 1, 7);
+  ctx.fillRect(PAUSE_X + 2, ICON_Y, 1, 7);
 
   // Blinking icon for the effect; with both on, they take turns.
   if (affected && Math.floor(s.frame / 8) % 2 === 0) {

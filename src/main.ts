@@ -38,7 +38,10 @@ function loop(now: number): void {
   requestAnimationFrame(loop);
 }
 
+// Leaving the app (or the window, on desktop) pauses the run so nothing is lost meanwhile.
+window.addEventListener('blur', () => game.pauseGame());
 document.addEventListener('visibilitychange', () => {
+  if (document.hidden) game.pauseGame();
   running = !document.hidden;
   if (running) {
     last = performance.now();

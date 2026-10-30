@@ -281,6 +281,14 @@ export const MUTE_BUTTON = {
   hitY: 16,
 } as const;
 
+// Pause: tap the top bar (or P / Esc) mid-run; the app pauses itself when it goes to the background.
+export const PAUSE = {
+  countdown: 3, // 3, 2, 1 before play picks up again
+  countdownStep: 0.4, // s per number
+  panel: { x: 8, y: 46, w: 56, h: 50 },
+  mute: { x: 33, y: 66, hitX: 24, hitY: 62, hitW: 24, hitH: 16 }, // speaker icon and its tap area
+} as const;
+
 export type PowerKind = 'shield' | 'time' | 'eggs';
 
 export const POWERUP = {

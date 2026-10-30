@@ -311,13 +311,14 @@ The first asteroid comes 2 s into a run and the first chicken at 4 s, so players
 
 ```
 ┌────────────────────────────────────┐
-│ 0412          ⇄        ◯ ◯ ◯       │  y 0–14: bar (navy, or cream when reversed)
+│ ‖ 0412          ⇄      ♥ ♥ ♥       │  y 0–14: bar (navy, or cream when reversed)
 ├────────────────────────────────────┤  y 15: 1 px orange line
 ```
 
-- Score: left at x = 3, baseline y = 12, cream (navy when reversed).
-- Swap icon: x = 40, y = 4, only while reversed, blinking.
-- Eggs: x = 51, 58, 65, y = 5. Filled = orange, empty = outline in the bar's text color.
+- Pause bars: x = 3 and 5, y 5–11, in the bar's text color. Tapping anywhere on the bar pauses.
+- Score: x = 9, baseline y = 12, cream (navy when reversed).
+- Effect icon: x = 42, y = 4, only while dazed or reversed, blinking.
+- Hearts: x = 51, 58, 65, y = 5. Filled = orange, empty = outline in the bar's text color.
 - Play area: y 16–143.
 
 ---
@@ -487,7 +488,15 @@ New things unlock one at a time during a run, each announced with a popup in the
 
 ---
 
-## 17. Out of scope (later ideas)
+## 17. Pause (built)
+
+- **Pausing:** tap the top bar mid-run, or press P or Esc. The run also pauses itself when the app goes to the background or, on desktop, the window loses focus.
+- **While paused:** the game freezes in place, audio included (the clock stops, so the music picks up mid-bar). A navy panel with an orange border shows **PAUSE**, a mute toggle, and a blinking **TAP**.
+- **Resuming:** tap anywhere else (or press P, Esc, Space or Enter). A **3, 2, 1** countdown follows, 0.4 s per number, with a blip on each, so you can put your finger back before anything moves. The music plays through the countdown.
+
+---
+
+## 18. Out of scope (later ideas)
 
 - Palette changes as you progress (unlock new three-color palettes).
 - Dithered asteroid style as a palette or level variant.

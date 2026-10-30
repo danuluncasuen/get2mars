@@ -4,12 +4,14 @@ import {
   AUDIO,
   CHICKEN,
   DAZE,
+  HUD,
   DEATH,
   EGG_DROP,
   LIVES,
   MUTE_BUTTON,
   NEAR_MISS,
   PALETTE,
+  PAUSE,
   POWERUP,
   REVERSE,
   ROCKET,
@@ -32,7 +34,7 @@ import { Starfield } from './entities/stars';
 import { buzz } from './haptics';
 import { renderHud } from './hud';
 import type { Input } from './input';
-import { renderGameOver, renderTitle } from './screens';
+import { renderGameOver, renderPause, renderTitle } from './screens';
 import { ROCKET_COLORS, ROCKET_MAP } from './sprites';
 import { boxesOverlap, circleHitsBox } from './systems/collision';
 import { sampleDifficulty } from './systems/difficulty';
@@ -74,6 +76,10 @@ export class Game {
   // Power-ups
   private shieldTimer = 0;
   private timeTimer = 0; // TIME: the world runs slow
+
+  // Pause sits on top of a run: 'countdown' counts 3, 2, 1 back into play.
+  private pause: 'off' | 'paused' | 'countdown' = 'off';
+  private pauseTime = 0; // s in the current pause phase
 
   private readonly announced = new Set<keyof typeof UNLOCK>();
 
@@ -137,8 +143,13 @@ export class Game {
   }
 
   update(dt: number): void {
-    this.frame++;
     if (this.input.consumeMuteKey()) this.sound.toggleMute();
+    const pauseKey = this.input.consumePauseKey();
+    if (this.pause !== 'off') {
+      this.updatePause(dt, pauseKey);
+      return;
+    }
+    this.frame++;
     // TIME slows the world; the rocket, score and timers keep real time.
     const wdt = this.timeTimer > 0 ? dt * POWERUP.timeFactor : dt;
     const playing = this.state === 'playing';
@@ -158,6 +169,12 @@ export class Game {
     }
 
     if (playing) {
+      const tap = this.input.consumeTap();
+      // Keyboard taps have no position (y -1), so only real taps on the bar pause.
+      if (pauseKey || (tap && tap.y >= 0 && tap.y < HUD.playTop)) {
+        this.pauseGame();
+        return;
+      }
       this.time += dt;
       this.score += SCORE.perSecond * dt;
       this.announceUnlocks();
@@ -215,9 +232,50 @@ export class Game {
       }
     }
 
-    // Music speeds up as the run gets harder and drops to half speed during TIME.
+    this.sound.update(this.musicTempo);
+  }
+
+  // Music speeds up as the run gets harder and drops to half speed during TIME.
+  private get musicTempo(): number {
     const rise = 1 + AUDIO.tempoRise * Math.min(1, this.time / 120);
-    this.sound.update(rise * (this.timeTimer > 0 ? POWERUP.timeFactor : 1));
+    return rise * (this.timeTimer > 0 ? POWERUP.timeFactor : 1);
+  }
+
+  // Freezes a run, e.g. when the app goes to the background. Does nothing outside a run.
+  pauseGame(): void {
+    if (this.state !== 'playing' || this.pause === 'paused') return;
+    this.pause = 'paused';
+    this.pauseTime = 0;
+    this.sound.pause();
+  }
+
+  private updatePause(dt: number, pauseKey: boolean): void {
+    const before = this.countdownLeft;
+    this.pauseTime += dt;
+    const tap = this.input.consumeTap();
+    if (this.pause === 'paused') {
+      const m = PAUSE.mute;
+      const onMute = tap && tap.x >= m.hitX && tap.x < m.hitX + m.hitW && tap.y >= m.hitY && tap.y < m.hitY + m.hitH;
+      if (onMute) this.sound.toggleMute();
+      else if (tap || pauseKey) {
+        this.pause = 'countdown';
+        this.pauseTime = 0;
+        this.sound.resume();
+        this.sound.play('blip');
+      }
+      return;
+    }
+    // The music plays on through the countdown, a cue that the run is about to resume.
+    this.sound.update(this.musicTempo);
+    const left = this.countdownLeft;
+    if (left === 0) this.pause = 'off';
+    else if (left !== before) this.sound.play('blip');
+  }
+
+  // The number shown during the countdown; 0 once it is over.
+  private get countdownLeft(): number {
+    if (this.pause !== 'countdown') return 0;
+    return Math.max(0, PAUSE.countdown - Math.floor(this.pauseTime / PAUSE.countdownStep));
   }
 
   // Names each new kind of thing the moment it starts showing up.
@@ -549,6 +607,7 @@ export class Game {
       heartsBlink: this.state === 'doomed',
       frame: this.frame,
     });
+    if (this.pause !== 'off') renderPause(ctx, this.pauseTime, this.countdownLeft, this.sound.muted);
   }
 
   private renderRocket(ctx: CanvasRenderingContext2D): void {
