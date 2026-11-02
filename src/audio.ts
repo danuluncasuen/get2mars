@@ -18,6 +18,8 @@ export type Sfx =
   | 'blip'
   | 'hole'
   | 'swallow'
+  | 'comet'
+  | 'clank'
   | 'star'
   | 'trail'
   | 'dive'
@@ -58,6 +60,8 @@ export class Sound {
   private noiseBuffer: AudioBuffer | null = null;
   private playing = false;
   private paused = false;
+  // For the lag log: the latest effect played, and when (performance.now()).
+  lastPlayed = { name: '', at: -Infinity };
   private nextStep = 0; // audio clock time of the next music step
   private step = 0;
 
@@ -134,6 +138,8 @@ export class Sound {
   // n: for 'star', how many stars of this trail were taken before it (raises the pitch).
   play(name: Sfx, n = 0): void {
     if (!this.ctx || this.muted) return;
+    this.lastPlayed.name = name;
+    this.lastPlayed.at = performance.now();
     switch (name) {
       case 'start':
         [72, 76, 79, 84].forEach((n, i) => this.tone('square', hz(n), hz(n), 0.07, 0.12, i * 0.06));
@@ -214,6 +220,17 @@ export class Sound {
         // Falling in: a long slide down into nothing, with a low rush.
         this.tone('triangle', 900, 30, 0.8, 0.35);
         this.noise(0.6, 0.3, 1200, 80);
+        break;
+      case 'comet':
+        // A hissing streak going past.
+        this.noise(0.4, 0.25, 6000, 900);
+        this.tone('square', 1600, 400, 0.3, 0.05);
+        break;
+      case 'clank':
+        // A thin metal knock.
+        this.tone('square', 1400, 700, 0.06, 0.12);
+        this.tone('square', 2100, 1800, 0.04, 0.06, 0.02);
+        this.noise(0.05, 0.15, 5000, 3000);
         break;
       case 'announce':
         this.tone('square', hz(76), hz(76), 0.08, 0.09);

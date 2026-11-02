@@ -11,12 +11,17 @@ function renderMute(ctx: CanvasRenderingContext2D, muted: boolean): void {
 }
 const MID = VIEW.w / 2;
 
+// Centered, but starting on a whole game pixel: a fractional start blurs the pixel font's edges.
+function centered(ctx: CanvasRenderingContext2D, s: string, y: number): void {
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillText(s, Math.round(MID - ctx.measureText(s).width / 2), y);
+}
+
 function text(ctx: CanvasRenderingContext2D, s: string, y: number, color: string): void {
   ctx.font = HUD.font;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = color;
-  ctx.fillText(s, MID, y);
+  centered(ctx, s, y);
 }
 
 const pad = (n: number) => String(Math.min(SCORE.maxShown, Math.floor(n))).padStart(4, '0');
@@ -60,6 +65,7 @@ export interface GameOverInfo {
   cause: DeathCause;
   time: number; // seconds the screen has been showing
   muted: boolean;
+  lag: string | null; // test builds: worst frame stall in ms and what entered just before
 }
 
 export function renderGameOver(ctx: CanvasRenderingContext2D, g: GameOverInfo): void {
@@ -87,6 +93,7 @@ export function renderGameOver(ctx: CanvasRenderingContext2D, g: GameOverInfo): 
   ctx.fillStyle = PALETTE.rocket;
   ctx.fillRect(12, 116, 48, 14);
   text(ctx, 'RETRY', 127, PALETTE.bg);
+  if (g.lag) text(ctx, g.lag, 141, PALETTE.detail);
 }
 
 // Drawn over the frozen game. countdown: the number left before play resumes, or 0 while paused.
@@ -98,10 +105,8 @@ export function renderPause(ctx: CanvasRenderingContext2D, time: number, countdo
   ctx.fillRect(p.x, p.y, p.w, p.h);
   if (countdown > 0) {
     ctx.font = "16px 'Press Start 2P'";
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'alphabetic';
     ctx.fillStyle = PALETTE.detail;
-    ctx.fillText(String(countdown), MID, p.y + p.h / 2 + 8);
+    centered(ctx, String(countdown), p.y + p.h / 2 + 8);
     return;
   }
   text(ctx, 'PAUSE', p.y + 14, PALETTE.detail);

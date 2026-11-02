@@ -1,4 +1,5 @@
 import { HUD, PALETTE, POPUP, VIEW } from '../config';
+import { snap } from '../pixel';
 
 interface Popup {
   text: string;
@@ -34,7 +35,7 @@ export class Popups {
       if (k > 0.6 && Math.floor(p.age * 15) % 2) continue;
       const w = ctx.measureText(p.text).width;
       const x = Math.max(0, Math.min(VIEW.w - w, p.x));
-      ctx.fillText(p.text, Math.round(x), Math.round(p.y - POPUP.rise * k));
+      ctx.fillText(p.text, Math.round(x), snap(p.y - POPUP.rise * k));
     }
   }
 }

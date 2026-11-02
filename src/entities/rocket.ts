@@ -1,6 +1,7 @@
-import { BLACK_HOLE, PALETTE, ROCKET, VIEW } from '../config';
+import { BLACK_HOLE, DEBRIS, PALETTE, ROCKET, VIEW } from '../config';
 import type { Input } from '../input';
 import { makeSprite, ROCKET_COLORS, ROCKET_MAP } from '../sprites';
+import { snap } from '../pixel';
 
 export interface Box {
   x: number;
@@ -23,11 +24,14 @@ export class Rocket {
   // Px offset of the target toward a black hole, set by the game every frame.
   pullX = 0;
   pullY = 0;
+  // Px sideways shove from debris, fading out on its own.
+  pushX = 0;
   private touchTime = Infinity; // s since the finger last went down
 
   reset(): void {
     this.pullX = 0;
     this.pullY = 0;
+    this.pushX = 0;
     this.touchTime = Infinity;
     this.x = START_X;
     this.y = ROCKET.startY;
@@ -37,10 +41,11 @@ export class Rocket {
 
   update(dt: number, input: Input): void {
     const scale = this.speedScale;
+    this.pushX *= Math.exp(-dt / DEBRIS.pushDecay);
     if (input.pointerX !== null && input.pointerY !== null) {
       this.touchTime = this.touchTime === Infinity ? 0 : this.touchTime + dt;
       const fingerX = this.reversed ? VIEW.w - input.pointerX : input.pointerX;
-      const tx = fingerX - ROCKET.w / 2 + this.pullX;
+      const tx = fingerX - ROCKET.w / 2 + this.pullX + this.pushX;
       const ty = input.pointerY - ROCKET.fingerOffset - ROCKET.h / 2 + this.pullY;
       // Frame-rate independent ease toward the finger, capped at max speed in any direction.
       const ease = 1 - Math.pow(1 - ROCKET.follow * scale, dt * 60);
@@ -61,6 +66,7 @@ export class Rocket {
       // Without a finger holding it, the rocket drifts into a black hole's pull.
       this.x += this.pullX * BLACK_HOLE.driftRate * dt;
       this.y += this.pullY * BLACK_HOLE.driftRate * dt;
+      this.x += this.pushX * DEBRIS.keyPush * dt;
     }
     this.x = Math.max(0, Math.min(MAX_X, this.x));
     this.y = Math.max(ROCKET.yMin, Math.min(ROCKET.yMax, this.y));
@@ -73,8 +79,8 @@ export class Rocket {
 
   // wobble: extra horizontal offset in px, used for the chicken-hit shake.
   render(ctx: CanvasRenderingContext2D, frame: number, wobble = 0): void {
-    const x = Math.round(this.x + wobble);
-    const y = Math.round(this.y);
+    const x = snap(this.x + wobble);
+    const y = snap(this.y);
     // Flame flickers between a short and a long burn; while dazed it sputters and drops out.
     ctx.fillStyle = PALETTE.detail;
     if (this.speedScale < 1) {

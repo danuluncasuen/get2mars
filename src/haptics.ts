@@ -32,12 +32,16 @@ const native = Capacitor.isNativePlatform();
 // The selection generator has to be started once before it can tick.
 if (native) Haptics.selectionStart().catch(() => {});
 let last = -Infinity;
+// For the lag log: the latest buzz that actually fired.
+export const lastBuzz = { kind: '', at: -Infinity };
 
 // Short haptic on game events: the Taptic Engine in the iOS app, vibration on the web.
 export function buzz(kind: BuzzKind): void {
   const now = performance.now();
   if (kind !== 'crash' && now - last < GAP_MS) return;
   last = now;
+  lastBuzz.kind = kind;
+  lastBuzz.at = now;
   if (native) {
     const style = NATIVE[kind];
     const done = style === 'selection' ? Haptics.selectionChanged() : Haptics.impact({ style });

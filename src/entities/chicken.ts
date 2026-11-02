@@ -1,6 +1,7 @@
 import { CHICKEN, DIVER, EGG_DROP, HUD, ROCKET, VIEW } from '../config';
 import { CHICKEN_A, CHICKEN_B, CHICKEN_COLORS, makeSprite } from '../sprites';
 import type { Box } from './rocket';
+import { snap } from '../pixel';
 
 // [wings up, wings down], one set per facing.
 const RIGHT = [makeSprite(CHICKEN_A, CHICKEN_COLORS), makeSprite(CHICKEN_B, CHICKEN_COLORS)];
@@ -141,6 +142,6 @@ export class Chicken {
     const facingRight = this.state === 'tumbling' ? this.vx > 0 : this.dir > 0;
     // Hovering divers jitter a pixel side to side.
     const jitter = this.state === 'hovering' ? (Math.floor(this.age * 20) % 2) : 0;
-    ctx.drawImage((facingRight ? RIGHT : LEFT)[frame], Math.round(this.x) + jitter, Math.round(this.y));
+    ctx.drawImage((facingRight ? RIGHT : LEFT)[frame], snap(this.x) + jitter, snap(this.y));
   }
 }

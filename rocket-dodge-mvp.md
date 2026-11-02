@@ -28,7 +28,9 @@ Store these in one `PALETTE` constant. Nothing else may define a color. Swapping
 ### 2.2 Resolution and scaling
 
 - Logical resolution: **72 × 144** (portrait, 1:2).
-- Render the game to an offscreen 72 × 144 canvas, then draw it to the screen canvas at an **integer scale**: `scale = floor(min(viewportW / 72, viewportH / 144))`, minimum 1.
+- The game draws in 72 × 144 game pixels at an **integer scale**: `scale = floor(min(viewportW / 72, viewportH / 144))`, minimum 1.
+- **Smooth motion:** the offscreen canvas is full device size with a `scale` transform, so the art stays on the game's pixel grid but moving things (rocket, rocks, chickens, eggs, boxes, comets, debris, particles, stars) are placed to the nearest device pixel instead of jumping a whole game pixel (about 5 points on a phone) at a time. Positions go through `snap()` in `pixel.ts`, which keeps every edge on a device pixel, so nothing blurs. Centered text starts on a whole game pixel so the pixel font stays crisp.
+- The canvas also watches its own size (iOS fills in the safe-area insets after the first layout, with no window resize), and taps are mapped through its actual on-screen size.
 - Fit it inside the safe area (notch and home bar) and the *small* viewport height (`100svh`), so it doesn't jump in size when Safari's toolbars show or hide.
 - Center it. Fill leftover space with **navy** (not black), so the palette rule holds.
 - `imageSmoothingEnabled = false` on every context. CSS: `image-rendering: pixelated`.
@@ -94,7 +96,7 @@ BBBBBBBBBB.
 ....O..O...
 ```
 
-**Asteroid — generated, radius 12 (about 25 × 25)**
+**Asteroid — generated, radius 8 (about 17 × 17)**
 
 Generate once per variant at startup into an offscreen canvas (make 4–6 variants from fixed seeds):
 
@@ -149,9 +151,9 @@ XXXXXX.
 
 ### 2.5 Background
 
-- About 22 stars: 1 × 1 orange pixels at random positions.
-- Two parallax layers: near stars scroll at 60 px/s, far stars at 30 px/s, wrapping vertically.
-- A few stars blink (skip drawing on some frames) for life.
+- 26 orange stars at random positions, in four shapes: a single dot, a 2 px vertical streak, a small x (3 × 3 corners and center), and a dotted sparkle (center plus four pixels 2 px out). Never the 3 × 3 plus: in cream, that's the collectible star.
+- Two parallax layers: far stars scroll at 30 px/s and are nearly all dots; near stars scroll at 60 px/s and are mostly the bigger shapes, so size and speed both read as depth.
+- A few stars twinkle for life: dots skip a few frames, bigger shapes shrink to their center pixel.
 
 ---
 
@@ -192,7 +194,7 @@ TITLE ──tap──▶ PLAYING ──fatal hit──▶ DYING (1.2 s) ──�
 | Max speed | 300 px/s following a finger, 140 px/s with arrow keys. After the finger goes back down, the top speed eases up from 70 to 300 px/s over 0.4 s, so the rocket glides over instead of jumping |
 
 ### Controls
-- **Drag anywhere** on the screen. The rocket's target is the finger's position (converted to logical pixels), with the rocket centered on the finger (an offset above it, 16 px then 8 px, felt too far) so the thumb doesn't hide it.
+- **Drag anywhere** on the screen. The rocket's target is the finger's position (converted to logical pixels), with the rocket's center 11 px above the finger, so the touch lands on the flame's lowest tip and the thumb never hides the rocket (0 put the thumb over it, 7 still felt low).
 - Up and down are limited to the lower half, so asteroids still need a sideways dodge and the warnings stay clear.
 - The rocket eases toward the target, closing 35% of the gap per frame, capped at max speed in any direction. It catches a 30 px finger move in about 170 ms (was 400 ms at 0.15 and 140 px/s, which felt laggy).
 - When the finger lifts, the rocket stays where it is.
@@ -219,11 +221,11 @@ TITLE ──tap──▶ PLAYING ──fatal hit──▶ DYING (1.2 s) ──�
 
 | Property | Value |
 |---|---|
-| Size | Radius 12 (about 25 px wide; 14 made some pairs near impossible) |
-| Spawn lane | Center x random in [16, 56] |
+| Size | Radius 8 (about 17 px wide; 14, then 12, made pairs too hard to dodge) |
+| Spawn lane | Center x random in [10, 62], so the edges are never a safe strip |
 | Warning time | 1.5 s at start, shrinking to 0.8 s (see 8) |
 | Fall speed | 190 px/s, rising to 240 px/s |
-| Hitbox | Circle, radius 10 (slightly smaller than drawn) |
+| Hitbox | Circle, radius 7 (slightly smaller than drawn) |
 | On hit | Fatal → DYING |
 
 **Warning phase** (before the asteroid appears):
@@ -475,9 +477,25 @@ New things unlock one at a time during a run, each announced with a popup in the
 - The shield breaks cream and orange eggs harmlessly. Golden eggs always pay out.
 - Falling eggs are separate from the HUD hearts.
 
-### Later ideas for the unlock schedule
-- Comet: a fast diagonal streak with a short warning at the screen edge.
-- Satellite debris: small, fast pieces drifting sideways in pairs that push the rocket.
+### Black hole (unlocks at 120 s, as GRAVITY)
+- Every 14–20 s a black hole opens at the left or right edge of the rocket's band (y 84–116), on the side away from the rocket. Only one at a time.
+- It grows in over 0.8 s (harmless, the warning, with a deep swooping sound), stays open 5 s, and shrinks away over 0.6 s.
+- Look: a navy core (radius 4) with an orange rim, a flat ring of orange and cream dots spinning around it, and cream specks spiralling in.
+- Pull: within 40 px it drags the rocket off your finger toward its center, by up to 10 px, more the closer you get. Without a finger on the screen, the rocket drifts toward it.
+- Coming apart: within 22 px of the center (rocket center), the rocket starts losing pixels to the hole. They peel off the sprite and stream straight into the core, up to 60 a second at the core's edge. The rocket shivers a pixel either way, and the phone ticks faster as you get closer (every 0.35 s down to every 0.1 s).
+- **Knock a chicken in: +200.** A chicken bounced off the shield tumbles away, and an open hole drags tumbling chickens in, bleeding their speed so they spiral down instead of slingshotting past. One knocked in off the shield scores +200, with a popup by the hole. Knocks toward the hole land from about 30 px away. Chickens tumbling after a plain hit get swallowed too, but score nothing.
+- Flying into the open core is a crash ("SUCKED IN"). Instead of exploding outward, every pixel of the rocket streams into the core over about 0.8 s, with a long sliding swoop instead of the crash. With a shield, the hole collapses instead and the shield is used up.
+
+### Comets (unlock at 180 s, as COMETS)
+- Every 7–11 s. The same orange "!" as an asteroid's warning blinks at the left or right edge, at the height it comes in (y 20–60), for 0.7 s, speeding up toward the end like the asteroid one, with the same beep.
+- Then the comet streaks in at 150 px/s, **aimed where the rocket is at that moment** (always heading down), with a hissing sound. Sidestep after it launches.
+- Look: a small cream cross with a 14 px tail, solid orange near the head and thinning to a dotted cream line.
+- Fatal like an asteroid (hit radius 2), and the shield pops it. Passing within the near-miss margin pays +50, once it's clear.
+
+### Satellite debris (unlocks at 150 s, as DEBRIS)
+- Every 6–10 s, a pair of small pieces (a broken 5×3 solar panel and a 3×3 hull chunk, cream with a blinking orange light) drifts sideways through the rocket's band at 55–75 px/s. The second piece trails 12 px behind and 9 px above or below.
+- An orange tick blinks on the edge they come in from for 0.6 s first.
+- Not fatal: a hit breaks the piece into sparks with a metal clank and a light buzz, and **shoves the rocket 14 px** the way it was drifting. The shove fades over about 0.35 s and the rocket eases back under your finger, but it can push you into something worse. The shield just knocks the pieces away.
 
 ---
 
@@ -489,14 +507,12 @@ New things unlock one at a time during a run, each announced with a popup in the
 - It sat top-right at first, but there it hid the mute button on the game over screen.
 - The checker stays locked to the screen's pixel grid as the planet grows, so it never shimmers.
 
-### Black hole (unlocks at 120 s, as GRAVITY)
-- Every 14–20 s a black hole opens at the left or right edge of the rocket's band (y 84–116), on the side away from the rocket. Only one at a time.
-- It grows in over 0.8 s (harmless, the warning, with a deep swooping sound), stays open 5 s, and shrinks away over 0.6 s.
-- Look: a navy core (radius 4) with an orange rim, a flat ring of orange and cream dots spinning around it, and cream specks spiralling in.
-- Pull: within 40 px it drags the rocket off your finger toward its center, by up to 10 px, more the closer you get. Without a finger on the screen, the rocket drifts toward it.
-- Coming apart: within 22 px of the center (rocket center), the rocket starts losing pixels to the hole. They peel off the sprite and stream straight into the core, up to 60 a second at the core's edge. The rocket shivers a pixel either way, and the phone ticks faster as you get closer (every 0.35 s down to every 0.1 s).
-- **Knock a chicken in: +200.** A chicken bounced off the shield tumbles away, and an open hole drags tumbling chickens in, bleeding their speed so they spiral down instead of slingshotting past. One knocked in off the shield scores +200, with a popup by the hole. Knocks toward the hole land from about 30 px away. Chickens tumbling after a plain hit get swallowed too, but score nothing.
-- Flying into the open core is a crash ("SUCKED IN"). Instead of exploding outward, every pixel of the rocket streams into the core over about 0.8 s, with a long sliding swoop instead of the crash. With a shield, the hole collapses instead and the shield is used up.
+---
+
+### Lag meter (test builds only)
+- While `TESTING.unlockScale` isn't 1, every frame slower than 40 ms during a run is checked, and the worst one is shown under RETRY on game over, with whatever entered in the 0.15 s before it: ROCK, BIRD, EGG, BOX, HOLE, CMET or DEBR, or "-" for nothing (e.g. "52 BIRD").
+- Mars builds all its growth sizes at startup, since drawing a new size pixel by pixel mid-run could stall a frame.
+- At startup every sprite and every letter of the font (8 and 16 px) is drawn once, off-screen. The first draw of each makes the phone upload or rasterize it, which stalled frames when new chickens and their unlock names appeared.
 
 ---
 

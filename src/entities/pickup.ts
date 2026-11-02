@@ -1,6 +1,7 @@
 import { PALETTE, POWERUP, VIEW, type PowerKind } from '../config';
 import { makeSprite, PICKUP_MAPS } from '../sprites';
 import type { Box } from './rocket';
+import { snap } from '../pixel';
 
 // [cream box + orange glyph, orange box + cream glyph] per kind.
 const SPRITES = Object.fromEntries(
@@ -36,6 +37,6 @@ export class Pickup {
 
   render(ctx: CanvasRenderingContext2D): void {
     const swap = Math.floor((this.age * 60) / POWERUP.colorSwapFrames) % 2;
-    ctx.drawImage(SPRITES[this.kind][swap], Math.round(this.x), Math.round(this.y));
+    ctx.drawImage(SPRITES[this.kind][swap], snap(this.x), snap(this.y));
   }
 }

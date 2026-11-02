@@ -1,4 +1,5 @@
 import { MARS, PALETTE } from '../config';
+import { registerSprite } from '../sprites';
 
 // Craters as [x, y, radius], in fractions of the planet's radius.
 const CRATERS = [
@@ -45,20 +46,21 @@ function makeMars(r: number): HTMLCanvasElement {
 
 // Dithered Mars in the top-left corner, growing with the run's time up to a size cap.
 export class Mars {
-  private radius = -1;
-  private sprite: HTMLCanvasElement | null = null;
+  // Every size it grows through, built up front: drawing one pixel by pixel mid-run stalls a frame.
+  private readonly sprites = new Map<number, HTMLCanvasElement>();
+
+  constructor() {
+    for (let r = MARS.radiusStart; r <= MARS.radiusMax; r++) this.sprites.set(r, registerSprite(makeMars(r)));
+  }
 
   render(ctx: CanvasRenderingContext2D, time: number): void {
     const k = Math.min(1, time / MARS.reachTime);
     const r = Math.round(MARS.radiusStart + (MARS.radiusMax - MARS.radiusStart) * k);
-    if (r !== this.radius) {
-      this.radius = r;
-      this.sprite = makeMars(r);
-    }
-    const half = this.sprite!.width / 2;
+    const sprite = this.sprites.get(r)!;
+    const half = sprite.width / 2;
     // Even offsets keep the checker lined up with the screen's pixel grid as it grows.
     const x = Math.round((MARS.cx - half) / 2) * 2;
     const y = Math.round((MARS.cy - half) / 2) * 2;
-    ctx.drawImage(this.sprite!, x, y);
+    ctx.drawImage(sprite, x, y);
   }
 }

@@ -4,11 +4,14 @@ import {
   AUDIO,
   BLACK_HOLE,
   CHICKEN,
+  COMET,
   DAZE,
   HUD,
   DEATH,
+  DEBRIS,
   HURT,
   EGG_DROP,
+  HITCH,
   LIVES,
   MUTE_BUTTON,
   NEAR_MISS,
@@ -28,6 +31,8 @@ import {
 } from './config';
 import { Asteroid } from './entities/asteroid';
 import type { BlackHole } from './entities/blackhole';
+import type { Comet } from './entities/comet';
+import type { Debris } from './entities/debris';
 import { Chicken } from './entities/chicken';
 import { Egg, randomEggKind } from './entities/egg';
 import { Mars } from './entities/mars';
@@ -36,6 +41,7 @@ import { Rocket } from './entities/rocket';
 import { Starfield } from './entities/stars';
 import { buzz } from './haptics';
 import { renderHud } from './hud';
+import { snap } from './pixel';
 import type { Input } from './input';
 import { renderGameOver, renderPause, renderTitle } from './screens';
 import { ROCKET_COLORS, ROCKET_MAP } from './sprites';
@@ -43,6 +49,7 @@ import { BlackHoleSpawner } from './systems/blackholes';
 import { boxesOverlap, circleHitsBox } from './systems/collision';
 import { sampleDifficulty } from './systems/difficulty';
 import { DiverSpawner, FlockSpawner } from './systems/flocks';
+import { CometSpawner, DebrisSpawner } from './systems/hazards';
 import { Particles } from './systems/particles';
 import { PickupSpawner } from './systems/pickups';
 import { Popups } from './systems/popups';
@@ -86,6 +93,11 @@ export class Game {
   private pause: 'off' | 'paused' | 'countdown' = 'off';
   private pauseTime = 0; // s in the current pause phase
 
+  // Test builds: the worst frame stall this run, and what entered just before it.
+  private worstHitch: { ms: number; label: string } | null = null;
+  private lastEntered = '';
+  private lastEnteredAt = -Infinity;
+
   private readonly announced = new Set<keyof typeof UNLOCK>();
 
   private readonly stars = new Starfield();
@@ -96,10 +108,14 @@ export class Game {
   private pickups: Pickup[] = [];
   private droppedEggs: Egg[] = [];
   private holes: BlackHole[] = [];
+  private comets: Comet[] = [];
+  private debris: Debris[] = [];
   private readonly asteroidSpawner = new AsteroidSpawner();
   private readonly flockSpawner = new FlockSpawner();
   private readonly diverSpawner = new DiverSpawner();
   private readonly holeSpawner = new BlackHoleSpawner();
+  private readonly cometSpawner = new CometSpawner();
+  private readonly debrisSpawner = new DebrisSpawner();
   private holeDanger = 0; // 0–1, how close the rocket is to an open core
   private peelAcc = 0; // pixels owed to the peel
   private tickTimer = 0; // s until the next pull haptic
@@ -131,12 +147,18 @@ export class Game {
     this.shieldTimer = 0;
     this.timeTimer = 0;
     this.announced.clear();
+    this.worstHitch = null;
+    this.lastEnteredAt = -Infinity;
     this.rocket.reset();
     this.asteroids = [];
     this.chickens = [];
     this.pickups = [];
     this.droppedEggs = [];
     this.holes = [];
+    this.comets = [];
+    this.debris = [];
+    this.cometSpawner.reset();
+    this.debrisSpawner.reset();
     this.holeDanger = 0;
     this.peelAcc = 0;
     this.tickTimer = 0;
@@ -185,6 +207,7 @@ export class Game {
       else if (tap && ready) this.startRun();
     }
 
+    const countsBefore = this.objectCounts();
     if (playing) {
       const tap = this.input.consumeTap();
       // Keyboard taps have no position (y -1), so only real taps on the bar pause.
@@ -218,6 +241,14 @@ export class Game {
           this.sound.play('hole');
         }
       }
+      if (this.unlocked('comets')) {
+        const comet = this.cometSpawner.update(wdt);
+        if (comet) {
+          this.comets.push(comet);
+          this.sound.play('warning');
+        }
+      }
+      if (this.unlocked('debris')) this.debris.push(...this.debrisSpawner.update(wdt));
       const pickup = this.pickupSpawner.update(wdt, this.needsClear, this.asteroids);
       if (pickup) this.pickups.push(pickup);
     }
@@ -236,7 +267,16 @@ export class Game {
         this.droppedEggs.push(new Egg(Math.round(x), Math.round(c.y + CHICKEN.h - 2), randomEggKind()));
       }
     }
+    this.noteEntered(countsBefore);
     for (const h of this.holes) h.update(wdt);
+    for (const d of this.debris) d.update(wdt);
+    for (const c of this.comets) {
+      c.update(wdt);
+      if (c.ready) {
+        c.launch(this.rocket.x + ROCKET.w / 2, this.rocket.y + ROCKET.h / 2);
+        if (playing) this.sound.play('comet');
+      }
+    }
     for (const p of this.pickups) p.update(wdt);
     for (const e of this.droppedEggs) e.update(wdt);
     this.starTrails.update(wdt, playing && this.unlocked('stars'));
@@ -247,6 +287,8 @@ export class Game {
       if (this.state === 'playing') this.checkStars();
       if (this.state === 'playing') this.checkEggs();
       if (this.state === 'playing') this.checkHoles();
+      if (this.state === 'playing') this.checkComets();
+      if (this.state === 'playing') this.checkDebris();
       if (this.state === 'playing') this.peel(dt);
     }
     this.asteroids = this.asteroids.filter((a) => !a.dead);
@@ -254,6 +296,8 @@ export class Game {
     this.pickups = this.pickups.filter((p) => !p.dead);
     this.droppedEggs = this.droppedEggs.filter((e) => !e.dead);
     this.holes = this.holes.filter((h) => !h.dead);
+    this.comets = this.comets.filter((c) => !c.dead);
+    this.debris = this.debris.filter((d) => !d.dead);
 
     if (this.state === 'doomed' || this.state === 'dying') {
       this.stateTimer -= dt;
@@ -307,6 +351,50 @@ export class Game {
   private get countdownLeft(): number {
     if (this.pause !== 'countdown') return 0;
     return Math.max(0, PAUSE.countdown - Math.floor(this.pauseTime / PAUSE.countdownStep));
+  }
+
+  // Short names (4 letters at most) so the lag line fits on the game over screen.
+  private objectCounts(): [string, number][] {
+    return [
+      ['ROCK', this.asteroids.length],
+      ['BIRD', this.chickens.length],
+      ['EGG', this.droppedEggs.length],
+      ['BOX', this.pickups.length],
+      ['HOLE', this.holes.length],
+      ['CMET', this.comets.length],
+      ['DEBR', this.debris.length],
+    ];
+  }
+
+  private noteEntered(before: [string, number][]): void {
+    const after = this.objectCounts();
+    const grew = after.find(([, n], i) => n > before[i][1]);
+    if (!grew) return;
+    this.lastEntered = grew[0];
+    this.lastEnteredAt = this.time;
+  }
+
+  get inRun(): boolean {
+    return this.state === 'playing' && this.pause === 'off';
+  }
+
+  // For the lag log: what entered last and when, and what's on screen.
+  lagContext(): string {
+    const ago = this.time - this.lastEnteredAt;
+    const entered = ago < 1 ? `${this.lastEntered} ${(ago * 1000).toFixed(0)}ms ago` : 'nothing new';
+    const on = this.objectCounts()
+      .filter(([, n]) => n > 0)
+      .map(([k, n]) => `${k}${n}`)
+      .join(' ');
+    return `entered: ${entered} | on screen: ${on || '-'} | particles ${this.particles.count} | t ${this.time.toFixed(1)}`;
+  }
+
+  // Called by the main loop with the time since the last frame, in ms.
+  noteFrame(ms: number): void {
+    if (TESTING.unlockScale === 1 || this.state !== 'playing' || this.pause !== 'off' || ms < HITCH.ms) return;
+    if (this.worstHitch && ms <= this.worstHitch.ms) return;
+    const label = this.time - this.lastEnteredAt < HITCH.window ? this.lastEntered : '-';
+    this.worstHitch = { ms: Math.round(ms), label };
   }
 
   // Names each new kind of thing the moment it starts showing up.
@@ -369,7 +457,8 @@ export class Game {
 
       if (circleHitsBox(a.cx, cy, ASTEROID.hitRadius, box)) {
         if (this.shieldTimer > 0) {
-          this.popShield(a);
+          a.dead = true;
+          this.popShield(a.cx, cy);
           continue;
         }
         this.die('asteroid');
@@ -479,6 +568,51 @@ export class Game {
       const p = h.pullOn(cx, cy);
       this.rocket.pullX += p.x;
       this.rocket.pullY += p.y;
+    }
+  }
+
+  // Comets are fatal like asteroids, and pay a near miss once they're safely past.
+  private checkComets(): void {
+    const box = this.rocket.hitbox;
+    const mx = this.rocket.x + ROCKET.w / 2;
+    const my = this.rocket.y + ROCKET.h / 2;
+    for (const c of this.comets) {
+      if (c.phase !== 'flying') continue;
+      if (circleHitsBox(c.x, c.y, COMET.hitRadius, box)) {
+        if (this.shieldTimer > 0) {
+          c.dead = true;
+          this.popShield(c.x, c.y);
+          continue;
+        }
+        this.die('asteroid');
+        return;
+      }
+      if (circleHitsBox(c.x, c.y, COMET.hitRadius + NEAR_MISS.margin, box)) c.grazed = true;
+      else if (c.grazed && !c.nearMissed && Math.hypot(c.x - mx, c.y - my) > COMET.hitRadius + NEAR_MISS.margin + 8) {
+        c.nearMissed = true;
+        this.nearMiss(c.x < mx ? -1 : 1);
+      }
+    }
+  }
+
+  // Debris shoves the rocket the way it was drifting; the shield just knocks it away.
+  private checkDebris(): void {
+    const box = this.rocket.hitbox;
+    for (const d of this.debris) {
+      if (d.phase !== 'flying' || !boxesOverlap(d.hitbox, box)) continue;
+      d.dead = true;
+      const hb = d.hitbox;
+      for (let i = 0; i < DEBRIS.sparks; i++) {
+        const color = i % 2 ? PALETTE.detail : PALETTE.rocket;
+        this.particles.add(hb.x + hb.w / 2, hb.y + hb.h / 2, d.dir * rand(10, 60), -rand(10, 60), rand(0.3, 0.6), color);
+      }
+      if (this.shieldTimer > 0) {
+        this.sound.play('bounce');
+        continue;
+      }
+      this.rocket.pushX = d.dir * DEBRIS.push;
+      this.sound.play('clank');
+      buzz('chicken');
     }
   }
 
@@ -604,15 +738,14 @@ export class Game {
   }
 
   // An asteroid hit while shielded: the rock shatters and the shield is used up.
-  private popShield(a: Asteroid): void {
-    a.dead = true;
+  // Something fatal hit the shield at (x, y): it shatters and the shield is used up.
+  private popShield(x: number, y: number): void {
     this.shieldTimer = 0;
-    const cy = a.centerY;
     for (let i = 0; i < POWERUP.popSparks; i++) {
       const angle = (i / POWERUP.popSparks) * Math.PI * 2;
       const speed = rand(40, 100);
       const color = i % 3 ? PALETTE.detail : PALETTE.rocket;
-      this.particles.add(a.cx, cy, Math.cos(angle) * speed, Math.sin(angle) * speed - 30, rand(0.5, 1), color);
+      this.particles.add(x, y, Math.cos(angle) * speed, Math.sin(angle) * speed - 30, rand(0.5, 1), color);
     }
     this.shake.add(DEATH.shake, DEATH.shakeTime);
     this.sound.play('shieldPop');
@@ -687,7 +820,7 @@ export class Game {
     this.holeDanger = 0;
     this.sound.stopMusic();
     buzz('crash');
-    const x0 = Math.round(this.rocket.x);
+    const x0 = snap(this.rocket.x);
     // Swallowed: every pixel of the rocket streams into the core instead of flying apart.
     if (hole) {
       this.sound.play('swallow');
@@ -695,7 +828,7 @@ export class Game {
         [...row].forEach((ch, i) => {
           const color = ROCKET_COLORS[ch];
           const speed = rand(BLACK_HOLE.implodeSpeedMin, BLACK_HOLE.implodeSpeedMax);
-          if (color) this.streamInto(hole, x0 + i, Math.round(this.rocket.y) + j, speed, color);
+          if (color) this.streamInto(hole, x0 + i, snap(this.rocket.y) + j, speed, color);
         });
       });
       return;
@@ -710,7 +843,7 @@ export class Game {
         if (!color) return;
         const vx = (i - 4) * 15 + rand(-30, 30);
         const vy = (j - 6) * 12 - rand(0, 72);
-        this.particles.add(x0 + i, Math.round(this.rocket.y) + j, vx, vy, rand(DEATH.lifeMin, DEATH.lifeMax), color);
+        this.particles.add(x0 + i, snap(this.rocket.y) + j, vx, vy, rand(DEATH.lifeMin, DEATH.lifeMax), color);
       });
     });
   }
@@ -737,6 +870,8 @@ export class Game {
     this.mars.render(ctx, this.time);
     for (const h of this.holes) h.render(ctx);
     for (const a of this.asteroids) a.render(ctx);
+    for (const d of this.debris) d.render(ctx);
+    for (const c of this.comets) c.render(ctx);
     for (const p of this.pickups) p.render(ctx);
     this.starTrails.render(ctx, this.frame);
     for (const e of this.droppedEggs) e.render(ctx);
@@ -754,6 +889,7 @@ export class Game {
         cause: this.deathCause,
         time: this.screenTime,
         muted: this.sound.muted,
+        lag: this.worstHitch ? `${Math.min(999, this.worstHitch.ms)} ${this.worstHitch.label}` : null,
       });
       return;
     }
@@ -789,14 +925,14 @@ export class Game {
       for (let i = 0; i < POWERUP.shieldDots; i++) {
         const a = this.frame * 0.05 + (i * Math.PI * 2) / POWERUP.shieldDots;
         ctx.fillStyle = i % 2 ? PALETTE.detail : PALETTE.rocket;
-        ctx.fillRect(Math.round(cx + Math.cos(a) * POWERUP.shieldRadius), Math.round(cy + Math.sin(a) * POWERUP.shieldRadius), 1, 1);
+        ctx.fillRect(snap(cx + Math.cos(a) * POWERUP.shieldRadius), snap(cy + Math.sin(a) * POWERUP.shieldRadius), 1, 1);
       }
     }
 
     // Dazed: a feather stuck to the rocket's side, swaying.
     if (this.dazeTimer > 0) {
-      const fx = Math.round(this.rocket.x + wobble) + ROCKET.w;
-      const fy = Math.round(this.rocket.y) + 4;
+      const fx = snap(this.rocket.x + wobble) + ROCKET.w;
+      const fy = snap(this.rocket.y) + 4;
       const sway = Math.round(Math.sin(this.frame * 0.15));
       ctx.fillStyle = PALETTE.rocket;
       ctx.fillRect(fx, fy + 2, 1, 1);
@@ -813,7 +949,7 @@ export class Game {
       const cy = this.rocket.y - 5;
       for (let i = 0; i < REVERSE.dizzyPixels; i++) {
         const a = this.frame * 0.2 + (i * Math.PI * 2) / REVERSE.dizzyPixels;
-        ctx.fillRect(Math.round(cx + Math.cos(a) * 6), Math.round(cy + Math.sin(a) * 2), 1, 1);
+        ctx.fillRect(snap(cx + Math.cos(a) * 6), snap(cy + Math.sin(a) * 2), 1, 1);
       }
     }
   }

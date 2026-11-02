@@ -1,7 +1,9 @@
 import { PALETTE, VIEW } from './config';
+import { setSubPixels } from './pixel';
 
-// Draws the game on a tiny offscreen canvas, then blits it to the screen at the
-// largest integer scale that fits, centered on a navy letterbox.
+// Draws the game at the largest integer scale that fits, centered on a navy letterbox.
+// The offscreen canvas is full device size with a scale transform: the game still draws in
+// 72x144 game pixels, but moving things can land between them (see pixel.ts).
 export class Display {
   readonly ctx: CanvasRenderingContext2D;
   private readonly screen: HTMLCanvasElement;
@@ -16,10 +18,7 @@ export class Display {
     this.screen = screen;
     this.screenCtx = screen.getContext('2d')!;
     this.buffer = document.createElement('canvas');
-    this.buffer.width = VIEW.w;
-    this.buffer.height = VIEW.h;
     this.ctx = this.buffer.getContext('2d')!;
-    this.ctx.imageSmoothingEnabled = false;
     this.resize();
     window.addEventListener('resize', () => this.resize());
     // iOS fills in the safe-area insets after the first layout, which resizes the canvas
@@ -38,19 +37,19 @@ export class Display {
     this.offsetX = Math.floor((w - VIEW.w * this.scale) / 2);
     this.offsetY = Math.floor((h - VIEW.h * this.scale) / 2);
     this.screenCtx.imageSmoothingEnabled = false;
+    // Resizing a canvas resets its context, so the transform goes back on every time.
+    this.buffer.width = VIEW.w * this.scale;
+    this.buffer.height = VIEW.h * this.scale;
+    this.ctx.setTransform(this.scale, 0, 0, this.scale, 0, 0);
+    this.ctx.imageSmoothingEnabled = false;
+    setSubPixels(this.scale);
   }
 
   present(shakeX = 0, shakeY = 0): void {
     const c = this.screenCtx;
     c.fillStyle = PALETTE.bg;
     c.fillRect(0, 0, this.screen.width, this.screen.height);
-    c.drawImage(
-      this.buffer,
-      this.offsetX + shakeX * this.scale,
-      this.offsetY + shakeY * this.scale,
-      VIEW.w * this.scale,
-      VIEW.h * this.scale,
-    );
+    c.drawImage(this.buffer, this.offsetX + shakeX * this.scale, this.offsetY + shakeY * this.scale);
   }
 
   // Converts a pointer position (CSS pixels) to logical game pixels. Goes through the canvas's

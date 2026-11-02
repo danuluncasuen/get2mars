@@ -2,6 +2,7 @@ import { PALETTE, STAR_TRAIL, VIEW } from '../config';
 import type { Box } from '../entities/rocket';
 import { makeSprite, STAR_MAP } from '../sprites';
 import { boxesOverlap } from './collision';
+import { snap } from '../pixel';
 
 const STAR = makeSprite(STAR_MAP, { X: PALETTE.rocket });
 const rand = (min: number, max: number) => min + Math.random() * (max - min);
@@ -87,8 +88,8 @@ export class StarTrails {
 
   render(ctx: CanvasRenderingContext2D, frame: number): void {
     this.stars.forEach((s, i) => {
-      const x = Math.round(s.x);
-      const y = Math.round(s.y);
+      const x = snap(s.x);
+      const y = snap(s.y);
       // Each star twinkles to a single pixel for a moment, staggered along the line.
       if (Math.floor(frame / STAR_TRAIL.twinkleFrames + i) % 5 === 0) {
         ctx.fillStyle = PALETTE.rocket;

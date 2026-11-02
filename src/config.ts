@@ -20,7 +20,7 @@ export const ROCKET = {
   startY: 112, // top of the sprite at the start of a run
   yMin: 72, // the rocket flies anywhere in the lower half
   yMax: 124,
-  fingerOffset: 0, // px the rocket's center sits above the finger (8 and 16 both felt too far)
+  fingerOffset: 11, // px the rocket's center sits above the finger: the touch lands on the flame's lowest tip (y+17)
   maxSpeed: 300, // px/s when following a finger
   // Putting a finger back down: the rocket glides over instead of jumping, its top speed
   // ramping from catchSpeed up to maxSpeed over catchTime.
@@ -34,7 +34,7 @@ export const ROCKET = {
 } as const;
 
 export const STARS = {
-  count: 22,
+  count: 26,
   nearSpeed: 60, // px/s
   farSpeed: 30,
   nearShare: 0.3,
@@ -50,10 +50,10 @@ export const HUD = {
 } as const;
 
 export const ASTEROID = {
-  radius: 12, // drawn size, about 25 px wide (14 made some pairs near impossible)
-  hitRadius: 10, // a little forgiving
-  laneMin: 16, // lane center range
-  laneMax: 56,
+  radius: 8, // drawn size, about 17 px wide (14, then 12, made pairs too hard to dodge)
+  hitRadius: 7, // a little forgiving
+  laneMin: 10, // lane center range: reaches near the edges, so they're never a safe strip
+  laneMax: 62,
   spawnY: -30,
   despawnY: 160,
   firstSpawn: 2, // seconds into a run
@@ -164,6 +164,14 @@ export const TESTING: { readonly unlockScale: number } = {
   unlockScale: 0.2,
 };
 
+// Test builds only: a frame slower than this counts as a lag spike, shown on game over
+// with whatever entered just before it.
+export const HITCH = {
+  ms: 40, // over two frames at 60 fps
+  logMs: 25, // test builds log every frame gap longer than this (a dropped frame or worse)
+  window: 0.15, // s: an object that entered this recently gets the blame
+} as const;
+
 // New threats and toys arrive one at a time, so every run reveals more as it goes.
 export const UNLOCK = {
   stars: 10, // seconds into a run
@@ -171,6 +179,8 @@ export const UNLOCK = {
   divers: 45,
   eggLayers: 90,
   blackHoles: 120,
+  debris: 150,
+  comets: 180,
 } as const;
 
 export const UNLOCK_NAMES: Record<keyof typeof UNLOCK, string> = {
@@ -179,7 +189,39 @@ export const UNLOCK_NAMES: Record<keyof typeof UNLOCK, string> = {
   divers: 'DIVE',
   eggLayers: 'EGGS',
   blackHoles: 'GRAVITY',
+  debris: 'DEBRIS',
+  comets: 'COMETS',
 };
+
+// Comets: a short warning at the screen edge, then a fast streak aimed where the rocket was.
+// Fatal like an asteroid; the shield pops it.
+export const COMET = {
+  intervalMin: 7, // s between comets once unlocked
+  intervalMax: 11,
+  warnTime: 0.7,
+  speed: 150, // px/s
+  entryYMin: 20, // y where it enters at the left or right edge
+  entryYMax: 60,
+  hitRadius: 2,
+  trail: 14, // px of tail
+  points: 50, // a near miss pays the same as an asteroid's
+} as const;
+
+// Satellite debris: pairs of small pieces drifting sideways through the rocket's band.
+// Not fatal: a hit shoves the rocket the way they travel. The shield knocks them away.
+export const DEBRIS = {
+  intervalMin: 6,
+  intervalMax: 10,
+  warnTime: 0.6, // edge ticks before they come in
+  speedMin: 55, // px/s
+  speedMax: 75,
+  pairDx: 12, // second piece trails the first by this much…
+  pairDy: 9, // …and sits this much above or below
+  push: 14, // px the rocket gets shoved off the finger
+  pushDecay: 0.35, // s for the shove to fade to about a third
+  keyPush: 4, // per s: without a finger, the rocket slides by push * keyPush px/s
+  sparks: 8,
+} as const;
 
 // A black hole opens at one side of the rocket's band, pulls the rocket toward it, then
 // closes. Flying into its core is a crash; a shield collapses it instead.

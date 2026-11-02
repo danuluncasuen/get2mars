@@ -21,6 +21,14 @@ export const ROCKET_MAP: SpriteMap = [
 
 export const ROCKET_COLORS: ColorKey = { R: PALETTE.rocket, D: PALETTE.detail };
 
+// Every sprite canvas made, so they can all be drawn once at startup (see warmUp in main.ts).
+export const ALL_SPRITES: HTMLCanvasElement[] = [];
+
+export function registerSprite(canvas: HTMLCanvasElement): HTMLCanvasElement {
+  ALL_SPRITES.push(canvas);
+  return canvas;
+}
+
 // Pre-renders a map into its own canvas so drawing it is a single drawImage call.
 export function makeSprite(map: SpriteMap, colors: ColorKey, flip = false): HTMLCanvasElement {
   const w = map[0].length;
@@ -36,7 +44,7 @@ export function makeSprite(map: SpriteMap, colors: ColorKey, flip = false): HTML
       ctx.fillRect(flip ? w - 1 - x : x, y, 1, 1);
     });
   });
-  return canvas;
+  return registerSprite(canvas);
 }
 
 // A chunky "!": thick bar tapering to a point, gap, square dot.
@@ -78,7 +86,7 @@ export function makeAsteroid(r: number, seed: number): HTMLCanvasElement {
       ctx.fillRect(x, y, 1, 1);
     }
   }
-  return canvas;
+  return registerSprite(canvas);
 }
 
 // Chickens face right; flip for left-flying ones. B = body, O = beak/comb/feet, E = eye.

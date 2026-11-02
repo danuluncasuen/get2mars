@@ -1,5 +1,6 @@
 import { ASTEROID, HUD } from '../config';
 import { DETAIL_COLORS, makeAsteroid, makeSprite, WARNING_MAP } from '../sprites';
+import { snap } from '../pixel';
 
 const SPRITES = ASTEROID.variants.map((seed) => makeAsteroid(ASTEROID.radius, seed));
 const WARNING = makeSprite(WARNING_MAP, DETAIL_COLORS);
@@ -37,7 +38,7 @@ export class Asteroid {
 
   render(ctx: CanvasRenderingContext2D): void {
     if (this.phase === 'warning') this.renderWarning(ctx);
-    else ctx.drawImage(this.sprite, Math.round(this.cx - this.sprite.width / 2), Math.round(this.y));
+    else ctx.drawImage(this.sprite, Math.round(this.cx - this.sprite.width / 2), snap(this.y));
   }
 
   // Just a "!" at the top of the lane, blinking faster as the drop gets close.

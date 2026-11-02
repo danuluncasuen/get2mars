@@ -1,6 +1,7 @@
 import { EGG_DROP, PALETTE, VIEW } from '../config';
 import { FALLING_EGG_MAP, makeSprite } from '../sprites';
 import type { Box } from './rocket';
+import { snap } from '../pixel';
 
 // splat: cream, yolk covers the screen. reverse: orange, controls swap. golden: a prize.
 export type EggKind = 'splat' | 'reverse' | 'golden';
@@ -40,6 +41,6 @@ export class Egg {
     let sprite = this.kind === 'reverse' ? ORANGE : CREAM;
     // Golden eggs flash between the two colors.
     if (this.kind === 'golden') sprite = Math.floor((this.age * 60) / EGG_DROP.goldenBlinkFrames) % 2 ? ORANGE : CREAM;
-    ctx.drawImage(sprite, Math.round(this.x), Math.round(this.y));
+    ctx.drawImage(sprite, snap(this.x), snap(this.y));
   }
 }

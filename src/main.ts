@@ -1,9 +1,11 @@
 import '@fontsource/press-start-2p/latin-400.css';
-import { HUD, MAX_FRAME, STEP } from './config';
+import { HITCH, HUD, MAX_FRAME, STEP, TESTING } from './config';
 import { Sound } from './audio';
 import { Display } from './display';
 import { Game } from './game';
 import { Input } from './input';
+import { lastBuzz } from './haptics';
+import { ALL_SPRITES } from './sprites';
 
 const DEBUG = new URLSearchParams(location.search).has('debug');
 
@@ -24,17 +26,47 @@ let last = performance.now();
 let acc = 0;
 let running = true;
 
+// Test builds log every slow frame with where the time went, for chasing lag on the phone
+// (the iOS app forwards console output to Xcode / devicectl --console).
+const LAG_LOG = TESTING.unlockScale !== 1;
+let lastWork = 0; // ms spent in update + render + present on the previous frame
+
+// iOS reports frame times rounded to 1 ms, so 60 Hz frames arrive as 16 or 17 ms, never 16.67.
+// Fed straight into the fixed step, a 16 ms frame falls just short of a step: the game freezes
+// for a frame, then jumps two steps on the next, a judder across the whole screen. Gaps within a
+// few ms of a whole number of steps count as exactly that many (a dropped frame still counts as 2).
+const STEP_MS = STEP * 1000;
+function steadyGap(gap: number): number {
+  const steps = Math.round(gap / STEP_MS);
+  return steps >= 1 && Math.abs(gap - steps * STEP_MS) < 4 ? steps * STEP_MS : gap;
+}
+
 function loop(now: number): void {
   if (!running) return;
-  acc += Math.min(MAX_FRAME, (now - last) / 1000);
+  const gap = now - last;
+  game.noteFrame(gap);
+  acc += Math.min(MAX_FRAME, steadyGap(gap) / 1000);
   last = now;
+  const t0 = performance.now();
+  let steps = 0;
   while (acc >= STEP) {
     game.update(STEP);
     acc -= STEP;
+    steps++;
   }
+  const t1 = performance.now();
   game.render(display.ctx);
+  const t2 = performance.now();
   const shake = game.shake.offset();
   display.present(shake.x, shake.y);
+  const t3 = performance.now();
+  if (LAG_LOG && gap > HITCH.logMs && game.inRun) {
+    const f = (ms: number) => ms.toFixed(1);
+    console.log(
+      `[lag] gap ${f(gap)} | prev work ${f(lastWork)} | now: update ${f(t1 - t0)} (${steps} steps) render ${f(t2 - t1)} present ${f(t3 - t2)} | buzz ${lastBuzz.kind || '-'} ${f(now - lastBuzz.at)}ms ago | sound ${sound.lastPlayed.name || '-'} ${f(now - sound.lastPlayed.at)}ms ago | ${game.lagContext()}`,
+    );
+  }
+  lastWork = t3 - t0;
   requestAnimationFrame(loop);
 }
 
@@ -50,7 +82,21 @@ document.addEventListener('visibilitychange', () => {
   }
 });
 
+// The first time a sprite or a letter is drawn, the phone has to upload or rasterize it, which
+// can stall that frame (it showed up as a hitch when new chickens and their names appeared).
+// Drawing everything once up front, under the first real frame, gets that out of the way.
+const GLYPHS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+-!';
+function warmUp(): void {
+  const ctx = display.ctx;
+  for (const s of ALL_SPRITES) ctx.drawImage(s, 0, 0);
+  for (const font of [HUD.font, "16px 'Press Start 2P'"]) {
+    ctx.font = font;
+    ctx.fillText(GLYPHS, 0, 16);
+  }
+}
+warmUp();
+
 // The font ships with the app, but canvas-only fonts aren't always fetched on their own; text switches over once this resolves.
-document.fonts.load(HUD.font).catch(() => {});
+document.fonts.load(HUD.font).then(warmUp).catch(() => {});
 
 requestAnimationFrame(loop);

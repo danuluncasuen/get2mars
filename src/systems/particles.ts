@@ -1,4 +1,5 @@
 import { PARTICLES } from '../config';
+import { snap } from '../pixel';
 
 interface Particle {
   x: number;
@@ -19,6 +20,10 @@ export class Particles {
     this.list.push({ x, y, vx, vy, life, color, gravity });
   }
 
+  get count(): number {
+    return this.list.length;
+  }
+
   clear(): void {
     this.list = [];
   }
@@ -36,7 +41,7 @@ export class Particles {
   render(ctx: CanvasRenderingContext2D): void {
     for (const p of this.list) {
       ctx.fillStyle = p.color;
-      ctx.fillRect(Math.floor(p.x), Math.floor(p.y), 1, 1);
+      ctx.fillRect(snap(p.x), snap(p.y), 1, 1);
     }
   }
 }
