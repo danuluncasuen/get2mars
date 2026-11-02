@@ -3,13 +3,13 @@ import { makeSprite, PICKUP_MAPS } from '../sprites';
 import type { Box } from './rocket';
 import { snap } from '../pixel';
 
-// [cream box + orange glyph, orange box + cream glyph] per kind.
+// Power-ups help, so the box stays cream; the glyph blinks orange / navy to catch the eye.
 const SPRITES = Object.fromEntries(
   (Object.keys(PICKUP_MAPS) as PowerKind[]).map((k) => [
     k,
     [
       makeSprite(PICKUP_MAPS[k], { B: PALETTE.rocket, G: PALETTE.detail }),
-      makeSprite(PICKUP_MAPS[k], { B: PALETTE.detail, G: PALETTE.rocket }),
+      makeSprite(PICKUP_MAPS[k], { B: PALETTE.rocket, G: PALETTE.bg }),
     ],
   ]),
 ) as Record<PowerKind, HTMLCanvasElement[]>;

@@ -11,14 +11,15 @@ import {
   DEBRIS,
   HURT,
   EGG_DROP,
+  HAZARDS,
   HITCH,
   LIVES,
   MUTE_BUTTON,
   NEAR_MISS,
   PALETTE,
   PAUSE,
+  RANKS,
   POWERUP,
-  REVERSE,
   ROCKET,
   SCORE,
   SCREENS,
@@ -81,7 +82,6 @@ export class Game {
   private sinceChickenHit = 0; // drives heart regen
   private immunity = 0;
   private dazeTimer = 0; // chicken hit: the rocket flies slow
-  private reverseTimer = 0; // orange egg: left and right swap
   private wobbleTimer = 0;
   private hurtTimer = 0; // heart just lost: screen edge flashes
 
@@ -97,6 +97,8 @@ export class Game {
   private worstHitch: { ms: number; label: string } | null = null;
   private lastEntered = '';
   private lastEnteredAt = -Infinity;
+
+  private ranked = 0; // ranks called out this run
 
   private readonly announced = new Set<keyof typeof UNLOCK>();
 
@@ -116,6 +118,7 @@ export class Game {
   private readonly holeSpawner = new BlackHoleSpawner();
   private readonly cometSpawner = new CometSpawner();
   private readonly debrisSpawner = new DebrisSpawner();
+  private hazardQuiet = 0; // s since the last black hole, comet or debris was gone
   private holeDanger = 0; // 0–1, how close the rocket is to an open core
   private peelAcc = 0; // pixels owed to the peel
   private tickTimer = 0; // s until the next pull haptic
@@ -141,12 +144,12 @@ export class Game {
     this.sinceChickenHit = 0;
     this.immunity = 0;
     this.dazeTimer = 0;
-    this.reverseTimer = 0;
     this.wobbleTimer = 0;
     this.hurtTimer = 0;
     this.shieldTimer = 0;
     this.timeTimer = 0;
     this.announced.clear();
+    this.ranked = 0;
     this.worstHitch = null;
     this.lastEnteredAt = -Infinity;
     this.rocket.reset();
@@ -159,6 +162,7 @@ export class Game {
     this.debris = [];
     this.cometSpawner.reset();
     this.debrisSpawner.reset();
+    this.hazardQuiet = 0;
     this.holeDanger = 0;
     this.peelAcc = 0;
     this.tickTimer = 0;
@@ -218,6 +222,7 @@ export class Game {
       this.time += dt;
       this.score += SCORE.perSecond * dt;
       this.announceUnlocks();
+      this.announceRank();
       this.updateEffects(dt);
       this.updatePowerups(dt);
       this.applyPull();
@@ -234,21 +239,7 @@ export class Game {
         const diver = this.diverSpawner.update(wdt, eggLayers);
         if (diver) this.chickens.push(diver);
       }
-      if (this.unlocked('blackHoles')) {
-        const hole = this.holeSpawner.update(wdt, this.rocket.x, this.holes.length > 0);
-        if (hole) {
-          this.holes.push(hole);
-          this.sound.play('hole');
-        }
-      }
-      if (this.unlocked('comets')) {
-        const comet = this.cometSpawner.update(wdt);
-        if (comet) {
-          this.comets.push(comet);
-          this.sound.play('warning');
-        }
-      }
-      if (this.unlocked('debris')) this.debris.push(...this.debrisSpawner.update(wdt));
+      if (this.hazardsClear(wdt)) this.spawnHazard(wdt);
       const pickup = this.pickupSpawner.update(wdt, this.needsClear, this.asteroids);
       if (pickup) this.pickups.push(pickup);
     }
@@ -353,6 +344,37 @@ export class Game {
     return Math.max(0, PAUSE.countdown - Math.floor(this.pauseTime / PAUSE.countdownStep));
   }
 
+  // True once no black hole, comet or debris is around and the breather after the last is over.
+  private hazardsClear(dt: number): boolean {
+    if (this.holes.length || this.comets.length || this.debris.length) {
+      this.hazardQuiet = 0;
+      return false;
+    }
+    this.hazardQuiet += dt;
+    return this.hazardQuiet >= HAZARDS.gap;
+  }
+
+  // Whichever unlocked hazard's timer runs out first gets the slot; the rest wait their turn.
+  private spawnHazard(dt: number): void {
+    if (this.unlocked('blackHoles')) {
+      const hole = this.holeSpawner.update(dt, this.rocket.x, false);
+      if (hole) {
+        this.holes.push(hole);
+        this.sound.play('hole');
+        return;
+      }
+    }
+    if (this.unlocked('comets')) {
+      const comet = this.cometSpawner.update(dt);
+      if (comet) {
+        this.comets.push(comet);
+        this.sound.play('warning');
+        return;
+      }
+    }
+    if (this.unlocked('debris')) this.debris.push(...this.debrisSpawner.update(dt));
+  }
+
   // Short names (4 letters at most) so the lag line fits on the game over screen.
   private objectCounts(): [string, number][] {
     return [
@@ -397,20 +419,34 @@ export class Game {
     this.worstHitch = { ms: Math.round(ms), label };
   }
 
+  // Every 1000 points: the points in orange, the rank name in cream under it.
+  private announceRank(): void {
+    const rank = Math.min(RANKS.names.length, Math.floor(this.score / RANKS.every));
+    if (rank <= this.ranked) return;
+    this.ranked = rank;
+    const points = String(rank * RANKS.every);
+    const name = RANKS.names[rank - 1];
+    this.popups.add(points, VIEW.w / 2 - points.length * 4, RANKS.y, PALETTE.detail, RANKS.life);
+    this.popups.add(name, VIEW.w / 2 - name.length * 4, RANKS.y + 10, PALETTE.rocket, RANKS.life);
+    this.sound.play('rank');
+    buzz('egg');
+  }
+
   // Names each new kind of thing the moment it starts showing up.
   private announceUnlocks(): void {
     for (const key of Object.keys(UNLOCK) as (keyof typeof UNLOCK)[]) {
       if (this.announced.has(key) || !this.unlocked(key)) continue;
       this.announced.add(key);
       const name = UNLOCK_NAMES[key];
-      this.popups.add(name, VIEW.w / 2 - name.length * 4, 64);
+      // Stars are a reward; everything else that unlocks is a new threat.
+      this.popups.add(name, VIEW.w / 2 - name.length * 4, 64, key === 'stars' ? PALETTE.rocket : PALETTE.detail);
       this.sound.play('announce');
     }
   }
 
   // A CLEAR power-up would help: lost hearts, or an effect on the rocket.
   private get needsClear(): boolean {
-    return this.hits > 0 || this.dazeTimer > 0 || this.reverseTimer > 0 || this.yolk.active;
+    return this.hits > 0 || this.dazeTimer > 0 || this.yolk.active;
   }
 
   private updatePowerups(dt: number): void {
@@ -427,10 +463,6 @@ export class Game {
       this.dazeTimer = Math.max(0, this.dazeTimer - dt);
       this.rocket.speedScale = this.dazeTimer > 0 ? DAZE.speed : 1;
     }
-    if (this.reverseTimer > 0) {
-      this.reverseTimer = Math.max(0, this.reverseTimer - dt);
-      this.rocket.reversed = this.reverseTimer > 0;
-    }
     if (this.hits > 0) {
       this.sinceChickenHit += dt;
       if (this.sinceChickenHit >= LIVES.regen) {
@@ -442,9 +474,7 @@ export class Game {
 
   private clearEffects(): void {
     this.dazeTimer = 0;
-    this.reverseTimer = 0;
     this.rocket.speedScale = 1;
-    this.rocket.reversed = false;
   }
 
   private checkAsteroids(): void {
@@ -547,14 +577,8 @@ export class Game {
         continue;
       }
       buzz('egg');
-      if (e.kind === 'splat') {
-        this.yolk.add();
-        this.sound.play('splat');
-      } else {
-        this.reverseTimer = REVERSE.duration;
-        this.rocket.reversed = true;
-        this.sound.play('reverse');
-      }
+      this.yolk.add();
+      this.sound.play('splat');
     }
   }
 
@@ -715,7 +739,7 @@ export class Game {
   }
 
   private breakEgg(e: Egg): void {
-    const color = e.kind === 'reverse' ? PALETTE.detail : PALETTE.rocket;
+    const color = PALETTE.rocket;
     for (let i = 0; i < EGG_DROP.breakBits; i++) {
       this.particles.add(e.x + 2, e.y + 2, rand(-50, 50), -rand(20, 80), rand(0.4, 0.7), color);
     }
@@ -898,7 +922,6 @@ export class Game {
     renderHud(ctx, {
       score: this.score,
       hits: this.hits,
-      reversed: this.rocket.reversed,
       dazed: this.dazeTimer > 0,
       heartsBlink: this.state === 'doomed',
       lostBlink: this.hurtTimer > 0,
@@ -940,17 +963,6 @@ export class Game {
       ctx.fillRect(fx + 1 + sway, fy, 2, 1);
       ctx.fillStyle = PALETTE.detail;
       ctx.fillRect(fx + 3 + sway, fy - 1, 1, 1);
-    }
-
-    // Dizzy pixels orbit above the rocket while controls are reversed.
-    if (this.rocket.reversed) {
-      ctx.fillStyle = PALETTE.detail;
-      const cx = this.rocket.x + wobble + ROCKET.w / 2 - 0.5;
-      const cy = this.rocket.y - 5;
-      for (let i = 0; i < REVERSE.dizzyPixels; i++) {
-        const a = this.frame * 0.2 + (i * Math.PI * 2) / REVERSE.dizzyPixels;
-        ctx.fillRect(snap(cx + Math.cos(a) * 6), snap(cy + Math.sin(a) * 2), 1, 1);
-      }
     }
   }
 

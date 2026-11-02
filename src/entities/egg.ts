@@ -3,17 +3,15 @@ import { FALLING_EGG_MAP, makeSprite } from '../sprites';
 import type { Box } from './rocket';
 import { snap } from '../pixel';
 
-// splat: cream, yolk covers the screen. reverse: orange, controls swap. golden: a prize.
-export type EggKind = 'splat' | 'reverse' | 'golden';
+// splat: yolk covers the screen. golden: a prize. (A reversed-controls egg felt like a bug: removed.)
+export type EggKind = 'splat' | 'golden';
 
 const CREAM = makeSprite(FALLING_EGG_MAP, { X: PALETTE.rocket });
 const ORANGE = makeSprite(FALLING_EGG_MAP, { X: PALETTE.detail });
 
 export function randomEggKind(): EggKind {
   const r = Math.random();
-  if (r < EGG_DROP.goldenChance) return 'golden';
-  if (r < EGG_DROP.goldenChance + EGG_DROP.reverseChance) return 'reverse';
-  return 'splat';
+  return r < EGG_DROP.goldenChance ? 'golden' : 'splat';
 }
 
 // An egg dropped by a chicken, falling straight down.
@@ -37,9 +35,9 @@ export class Egg {
     if (this.y > VIEW.h) this.dead = true;
   }
 
+  // The yolk egg is plain cream; the golden one flashes between cream and orange.
   render(ctx: CanvasRenderingContext2D): void {
-    let sprite = this.kind === 'reverse' ? ORANGE : CREAM;
-    // Golden eggs flash between the two colors.
+    let sprite = CREAM;
     if (this.kind === 'golden') sprite = Math.floor((this.age * 60) / EGG_DROP.goldenBlinkFrames) % 2 ? ORANGE : CREAM;
     ctx.drawImage(sprite, snap(this.x), snap(this.y));
   }

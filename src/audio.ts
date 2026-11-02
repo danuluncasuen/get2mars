@@ -19,12 +19,12 @@ export type Sfx =
   | 'hole'
   | 'swallow'
   | 'comet'
+  | 'rank'
   | 'clank'
   | 'star'
   | 'trail'
   | 'dive'
   | 'splat'
-  | 'reverse'
   | 'golden'
   | 'announce';
 
@@ -204,10 +204,6 @@ export class Sound {
         this.noise(0.25, 0.4, 900, 200);
         this.tone('triangle', 220, 90, 0.2, 0.3);
         break;
-      case 'reverse':
-        this.tone('square', 300, 900, 0.12, 0.1);
-        this.tone('square', 900, 300, 0.12, 0.1, 0.12);
-        break;
       case 'golden':
         [79, 84, 88, 91, 96].forEach((note, i) => this.tone('square', hz(note), hz(note), 0.08, 0.08, i * 0.06));
         break;
@@ -231,6 +227,11 @@ export class Sound {
         this.tone('square', 1400, 700, 0.06, 0.12);
         this.tone('square', 2100, 1800, 0.04, 0.06, 0.02);
         this.noise(0.05, 0.15, 5000, 3000);
+        break;
+      case 'rank':
+        // A short rising fanfare, a step up from the unlock chime.
+        [72, 76, 79, 84].forEach((note, i) => this.tone('square', hz(note), hz(note), 0.09, 0.08, i * 0.07));
+        this.tone('triangle', hz(88), hz(88), 0.35, 0.18, 0.28);
         break;
       case 'announce':
         this.tone('square', hz(76), hz(76), 0.08, 0.09);

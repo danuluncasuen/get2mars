@@ -120,7 +120,6 @@ export const CHICKEN_COLORS: ColorKey = { B: PALETTE.rocket, O: PALETTE.detail, 
 export const HEART_FULL: SpriteMap = ['.X.X.', 'XXXXX', 'XXXXX', '.XXX.', '..X..'];
 export const HEART_EMPTY: SpriteMap = ['.X.X.', 'X.X.X', 'X...X', '.X.X.', '..X..'];
 
-export const SWAP_MAP: SpriteMap = ['....X..', 'XXXXXX.', '....X..', '..X....', '.XXXXXX', '..X....'];
 
 // Speaker for the mute toggle; the muted version swaps the waves for an X.
 export const SPEAKER_MAP: SpriteMap = [
@@ -142,7 +141,7 @@ export const SPEAKER_MUTED_MAP: SpriteMap = [
   '..X....',
 ];
 
-// Power-up pickups: B = box, G = glyph. The two colors swap every few frames.
+// Power-up pickups: B = box, G = glyph (see pickup.ts for the colors).
 const BOX_TOP = 'BBBBBBBBB';
 const BOX_GAP = 'B.......B';
 export const PICKUP_MAPS: Record<PowerKind, SpriteMap> = {

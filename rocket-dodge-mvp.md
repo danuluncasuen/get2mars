@@ -30,6 +30,7 @@ Store these in one `PALETTE` constant. Nothing else may define a color. Swapping
 - Logical resolution: **72 × 144** (portrait, 1:2).
 - The game draws in 72 × 144 game pixels at an **integer scale**: `scale = floor(min(viewportW / 72, viewportH / 144))`, minimum 1.
 - **Smooth motion:** the offscreen canvas is full device size with a `scale` transform, so the art stays on the game's pixel grid but moving things (rocket, rocks, chickens, eggs, boxes, comets, debris, particles, stars) are placed to the nearest device pixel instead of jumping a whole game pixel (about 5 points on a phone) at a time. Positions go through `snap()` in `pixel.ts`, which keeps every edge on a device pixel, so nothing blurs. Centered text starts on a whole game pixel so the pixel font stays crisp.
+- **Steady steps:** iOS reports frame times rounded to 1 ms, so 60 Hz frames arrive as 16 or 17 ms. Fed straight into the fixed 1/60 s step, a 16 ms frame fell just short of a step: the game froze a frame, then jumped two, a judder across the whole screen (about 900 a minute in simulation). Frame gaps within 4 ms of a whole number of steps now count as exactly that many, so every normal frame advances one step and a dropped frame still advances two. Measured on the iPhone afterwards: 2 freeze-and-jumps in 7,500 frames.
 - The canvas also watches its own size (iOS fills in the safe-area insets after the first layout, with no window resize), and taps are mapped through its actual on-screen size.
 - Fit it inside the safe area (notch and home bar) and the *small* viewport height (`100svh`), so it doesn't jump in size when Safari's toolbars show or hide.
 - Center it. Fill leftover space with **navy** (not black), so the palette rule holds.
@@ -139,16 +140,6 @@ XXXX      X..X
 .XX.      .XX.
 ```
 
-**Swap icon — 7 × 6** (orange, shown while controls are reversed)
-```
-....X..
-XXXXXX.
-....X..
-..X....
-.XXXXXX
-..X....
-```
-
 ### 2.5 Background
 
 - 26 orange stars at random positions, in four shapes: a single dot, a 2 px vertical streak, a small x (3 × 3 corners and center), and a dotted sparkle (center plus four pixels 2 px out). Never the 3 × 3 plus: in cream, that's the collectible star.
@@ -194,7 +185,7 @@ TITLE ──tap──▶ PLAYING ──fatal hit──▶ DYING (1.2 s) ──�
 | Max speed | 300 px/s following a finger, 140 px/s with arrow keys. After the finger goes back down, the top speed eases up from 70 to 300 px/s over 0.4 s, so the rocket glides over instead of jumping |
 
 ### Controls
-- **Drag anywhere** on the screen. The rocket's target is the finger's position (converted to logical pixels), with the rocket's center 11 px above the finger, so the touch lands on the flame's lowest tip and the thumb never hides the rocket (0 put the thumb over it, 7 still felt low).
+- **Drag anywhere** on the screen. The rocket's target is the finger's position (converted to logical pixels), with the rocket's center 13 px above the finger, so the touch lands 2 px below the flame's tip and the rocket stays visible above the thumb (0 put the thumb over it; 7 and 11 still felt low).
 - Up and down are limited to the lower half, so asteroids still need a sideways dodge and the warnings stay clear.
 - The rocket eases toward the target, closing 35% of the gap per frame, capped at max speed in any direction. It catches a 30 px finger move in about 170 ms (was 400 ms at 0.15 and 140 px/s, which felt laggy).
 - When the finger lifts, the rocket stays where it is.
@@ -208,10 +199,7 @@ TITLE ──tap──▶ PLAYING ──fatal hit──▶ DYING (1.2 s) ──�
   - The flame sputters and drops out.
   - A small cream feather with an orange tip sways on the rocket's right side.
 
-### Reversed controls (orange egg)
-- While reversed, target x = `72 − fingerX`. Arrow keys also swap. Up and down stay normal.
-- Duration: **3 s**, restarted by another orange egg.
-- Feedback: HUD bar inverts with the swap icon, and 3 orange "dizzy" pixels orbit above the rocket. With both effects on, the HUD icons take turns.
+- (Reversed controls from an orange egg were removed: the sudden swap felt like a bug.)
 
 ---
 
@@ -280,7 +268,7 @@ TITLE ──tap──▶ PLAYING ──fatal hit──▶ DYING (1.2 s) ──�
 | Asteroid warning | Blinking "!" at the top of the lane, faster near the drop, plus two blips |
 | Asteroid passing nearby | ±1 px screen shake |
 | Near miss | "+50" orange popup that rises 15 px over about 0.8 s and blinks out. 10-particle cream and orange spark burst at the rocket's side |
-| Chicken hit | Feather burst, chicken tumbles away, rocket shake, HUD inverts, swap icon, dizzy pixels |
+| Chicken hit | Feather burst, chicken tumbles away, rocket shake, HUD inverts with a feather icon, orange frame flash |
 | Death | Rocket breaks into its own pixels: each pixel becomes a particle moving outward from the center plus random up-kick, gravity 0.04 px/frame², lifetime 1–1.7 s. Screen shake ±2 px for 0.3 s |
 
 Particles: max about 200 alive. Single pixels in palette colors only.
@@ -315,14 +303,14 @@ The first asteroid comes 2 s into a run and the first chicken at 4 s, so players
 
 ```
 ┌────────────────────────────────────┐
-│ ‖ 0412          ⇄      ♥ ♥ ♥       │  y 0–14: bar (navy, or cream when reversed)
+│ ‖ 0412          ⇄      ♥ ♥ ♥       │  y 0–14: bar (navy, or cream while dazed)
 ├────────────────────────────────────┤  y 15: 1 px orange line
 ```
 
 - One row, left to right, icons centered on the digits (y 6–10, digits y 5–11):
   - Pause: two 2 px bars at x 2 and 6, in the bar's text color. Tapping anywhere on the bar pauses.
   - Score: x = 11 (ink 11–41), baseline y = 12, cream (navy when the bar is inverted).
-  - Effect icon: x = 43, y = 5, only while dazed or reversed, blinking.
+  - Effect icon: x = 43, y = 5, a feather, only while dazed, blinking.
   - Hearts: x = 52, 58, 64 (5 px wide, 1 px apart). Filled = orange, empty = outline in the bar's text color.
 - Play area: y 16–143.
 
@@ -365,7 +353,7 @@ rocket-dodge/
     ├── main.ts            boot, resize, loop
     ├── config.ts          PALETTE, sizes, timings, difficulty table
     ├── sprites.ts         pixel maps + drawSprite(), asteroid generator
-    ├── input.ts           pointer/keyboard → targetX, reverse handling
+    ├── input.ts           pointer/keyboard → targetX
     ├── state.ts           TITLE / PLAYING / DYING / GAME_OVER
     ├── entities/
     │   ├── rocket.ts
@@ -436,12 +424,12 @@ Put every number from sections 4–9 in `config.ts`. Optional: a `?debug` URL fl
 |---|---|
 | Look | 9 × 9 box with a glyph (shield, clock, egg). Box and glyph swap cream/orange every 16 frames |
 | Spawn | First at 12 s, then every 12–20 s. Falls at 40 px/s, x ∈ [4, 59], away from lanes with an asteroid warning |
-| Kind | Shield or TIME, 50/50. When a CLEAR would help (lost hearts, dazed, reversed or yolk), 50% chance of a CLEAR instead |
+| Kind | Shield or TIME, 50/50. When a CLEAR would help (lost hearts, dazed or yolk), 50% chance of a CLEAR instead |
 | Collect | Rocket hitbox overlaps the box. Pickup chime and a popup (SHIELD, TIME, CLEAR) |
 
 - **Shield (10 s):** a ring of 10 rotating pixels around the rocket. Chickens bounce off without laying eggs, and bad falling eggs break on it; the shield stays up. An asteroid hit shatters the asteroid instead of the rocket and uses up the shield.
 - **TIME (5 s, was "Slow"):** asteroids, warnings, chickens, pickups, spawners and stars run at half speed. The rocket, score and every timer stay at full speed.
-- **CLEAR:** refills the hearts and ends dazed, reversed and yolk at once.
+- **CLEAR:** refills the hearts and ends dazed and yolk at once.
 - Active effects show as countdown lines on the bottom edge: cream (shield) at y 143, orange (TIME) at y 141. Both blink for their last 2 s.
 - Everything ends on death.
 
@@ -449,14 +437,28 @@ Put every number from sections 4–9 in `config.ts`. Optional: a `?debug` URL fl
 
 ## 15. v3: variety (built)
 
-New things unlock one at a time during a run, each announced with a popup in the middle of the screen and a two-note chime:
+New things unlock one at a time during a run, each announced with a popup in the middle of the screen and a two-note chime (cream for STARS, orange for threats). Everything is in by 2:15: reaching 3 minutes is the bar for a good player, and that leaves 45 s of the full mix.
 
 | Time | Unlock | Popup |
 |---|---|---|
-| 10 s | Star trails | STARS |
-| 25 s | Bouncing chickens | BOUNCE |
-| 45 s | Diving chickens | DIVE |
-| 90 s | Egg-laying chickens | EGGS |
+| 0:10 | Star trails | STARS |
+| 0:25 | Bouncing chickens | BOUNCE |
+| 0:40 | Diving chickens | DIVE |
+| 1:00 | Egg-laying chickens | EGGS |
+| 1:25 | Satellite debris | DEBRIS |
+| 1:50 | Black holes | GRAVITY |
+| 2:15 | Comets | COMETS |
+
+- **One special hazard at a time:** black holes, comets and debris never overlap. After one is gone there are 3 s of quiet before the next, and their spawn timers only run during those clear stretches, so their rates don't pile up.
+
+### Colors
+- Popups: cream for good news (points, power-ups, STARS, rank names), orange for new threats and the rank's points line.
+- Power-up boxes stay cream; the glyph blinks orange/navy.
+- A strict "orange hurts, cream helps" pass (orange yolk eggs, all-orange comets and debris) was tried and reverted: cream eggs and the cream comet head and debris look more natural.
+
+### Ranks
+- Every 1000 points a rank is called out mid-screen for 1.6 s: the points in orange (y 46), the name in cream under it, with a short rising fanfare and a light buzz.
+- 1000 CADET, 2000 PILOT, 3000 ACE, 4000 CAPTAIN, 5000 COMMANDER, 6000 ADMIRAL, 7000 LEGEND, 8000 STARBORN, 9000 MARTIAN. Names are 9 letters at most to fit the screen. A 3-minute run lands around 2000–3500.
 
 ### Star trails
 - Every 6–10 s, a line of 6–9 cream "+" stars (3 × 3) falls at 55 px/s, swaying side to side (sine curve, 10–22 px wide, kept on screen). Stars twinkle down to one pixel now and then.
@@ -470,14 +472,14 @@ New things unlock one at a time during a run, each announced with a popup in the
 - Every 6–10 s: a chicken drops in from the top and hovers at y 19, flapping frantically and jittering (the warning). After 1.1 s it dives in a straight line at where the rocket is at that moment, at 130 px/s, with a falling whistle.
 
 ### Egg-laying chickens and falling eggs
-- 35% of chickens (divers included) carry an egg. They drop it shortly after appearing over the play area, or at the latest just above the rocket's band. Eggs fall straight down at 70 px/s. About 12 a minute late in a run.
-- **Cream egg (45%):** yolk splat. A lumpy cream blob with an orange yolk (radius ~15 px) covers part of the screen (center x 14–58, y 40–92) for 3 s, drips, and dissolves over the last second, edges first.
-- **Orange egg (45%):** reversed controls for 3 s.
-- **Golden egg (10%, flashes cream/orange):** +200, or a free shield or TIME (50/50), with a jingle.
-- The shield breaks cream and orange eggs harmlessly. Golden eggs always pay out.
+- 17% of chickens (divers included) carry an egg. They drop it shortly after appearing over the play area, or at the latest just above the rocket's band. Eggs fall straight down at 70 px/s. About 7 a minute late in a run.
+- **Cream egg (85%):** yolk splat. A lumpy cream blob with an orange yolk (radius ~15 px) covers part of the screen (center x 14–58, y 40–92) for 3 s, drips, and dissolves over the last second, edges first.
+- **Golden egg (15%, flashes cream/orange):** +200, or a free shield or TIME (50/50), with a jingle.
+- The shield breaks yolk eggs harmlessly. Golden eggs always pay out.
+- (An orange reversed-controls egg used to be a third kind; it was removed because the sudden swap felt like a bug.)
 - Falling eggs are separate from the HUD hearts.
 
-### Black hole (unlocks at 120 s, as GRAVITY)
+### Black hole (unlocks at 1:50, as GRAVITY)
 - Every 14–20 s a black hole opens at the left or right edge of the rocket's band (y 84–116), on the side away from the rocket. Only one at a time.
 - It grows in over 0.8 s (harmless, the warning, with a deep swooping sound), stays open 5 s, and shrinks away over 0.6 s.
 - Look: a navy core (radius 4) with an orange rim, a flat ring of orange and cream dots spinning around it, and cream specks spiralling in.
@@ -486,13 +488,13 @@ New things unlock one at a time during a run, each announced with a popup in the
 - **Knock a chicken in: +200.** A chicken bounced off the shield tumbles away, and an open hole drags tumbling chickens in, bleeding their speed so they spiral down instead of slingshotting past. One knocked in off the shield scores +200, with a popup by the hole. Knocks toward the hole land from about 30 px away. Chickens tumbling after a plain hit get swallowed too, but score nothing.
 - Flying into the open core is a crash ("SUCKED IN"). Instead of exploding outward, every pixel of the rocket streams into the core over about 0.8 s, with a long sliding swoop instead of the crash. With a shield, the hole collapses instead and the shield is used up.
 
-### Comets (unlock at 180 s, as COMETS)
+### Comets (unlock at 2:15, as COMETS)
 - Every 7–11 s. The same orange "!" as an asteroid's warning blinks at the left or right edge, at the height it comes in (y 20–60), for 0.7 s, speeding up toward the end like the asteroid one, with the same beep.
 - Then the comet streaks in at 150 px/s, **aimed where the rocket is at that moment** (always heading down), with a hissing sound. Sidestep after it launches.
 - Look: a small cream cross with a 14 px tail, solid orange near the head and thinning to a dotted cream line.
 - Fatal like an asteroid (hit radius 2), and the shield pops it. Passing within the near-miss margin pays +50, once it's clear.
 
-### Satellite debris (unlocks at 150 s, as DEBRIS)
+### Satellite debris (unlocks at 1:25, as DEBRIS)
 - Every 6–10 s, a pair of small pieces (a broken 5×3 solar panel and a 3×3 hull chunk, cream with a blinking orange light) drifts sideways through the rocket's band at 55–75 px/s. The second piece trails 12 px behind and 9 px above or below.
 - An orange tick blinks on the edge they come in from for 0.6 s first.
 - Not fatal: a hit breaks the piece into sparks with a metal clank and a light buzz, and **shoves the rocket 14 px** the way it was drifting. The shove fades over about 0.35 s and the rocket eases back under your finger, but it can push you into something worse. The shield just knocks the pieces away.
@@ -510,6 +512,7 @@ New things unlock one at a time during a run, each announced with a popup in the
 ---
 
 ### Lag meter (test builds only)
+- Test builds also `console.log` every frame gap over 25 ms during a run, with update/render/present times and the last vibration, sound and entered object. In the iOS app that console reaches the Mac with `xcrun devicectl device process launch --console …`.
 - While `TESTING.unlockScale` isn't 1, every frame slower than 40 ms during a run is checked, and the worst one is shown under RETRY on game over, with whatever entered in the 0.15 s before it: ROCK, BIRD, EGG, BOX, HOLE, CMET or DEBR, or "-" for nothing (e.g. "52 BIRD").
 - Mars builds all its growth sizes at startup, since drawing a new size pixel by pixel mid-run could stall a frame.
 - At startup every sprite and every letter of the font (8 and 16 px) is drawn once, off-screen. The first draw of each makes the phone upload or rasterize it, which stalled frames when new chickens and their unlock names appeared.

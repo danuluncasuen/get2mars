@@ -20,7 +20,7 @@ export const ROCKET = {
   startY: 112, // top of the sprite at the start of a run
   yMin: 72, // the rocket flies anywhere in the lower half
   yMax: 124,
-  fingerOffset: 11, // px the rocket's center sits above the finger: the touch lands on the flame's lowest tip (y+17)
+  fingerOffset: 13, // px the rocket's center sits above the finger: the touch lands 2 px below the flame tip (y+19)
   maxSpeed: 300, // px/s when following a finger
   // Putting a finger back down: the rocket glides over instead of jumping, its top speed
   // ramping from catchSpeed up to maxSpeed over catchTime.
@@ -111,6 +111,15 @@ export const POPUP = {
   duration: 0.8, // s
 } as const;
 
+// Every 1000 points a rank is called out mid-screen. Names fit the 72 px screen (9 letters max).
+// A 3-minute run lands around 2000–3500, so the first ranks come quickly and the rest are a chase.
+export const RANKS = {
+  every: 1000,
+  names: ['CADET', 'PILOT', 'ACE', 'CAPTAIN', 'COMMANDER', 'ADMIRAL', 'LEGEND', 'STARBORN', 'MARTIAN'],
+  y: 46, // baseline of the points line; the name sits under it
+  life: 1.6, // s on screen
+} as const;
+
 export const DEATH = {
   duration: 1.2, // s before the run restarts (game over screen comes in M5)
   shake: 2,
@@ -152,16 +161,10 @@ export const DAZE = {
   shakeTime: 0.5,
 } as const;
 
-// Orange egg hit: left and right swap.
-export const REVERSE = {
-  duration: 3,
-  dizzyPixels: 3,
-} as const;
-
 // Testing aid. unlockScale multiplies every UNLOCK time: 1 for release, lower brings
 // everything sooner (0.2: stars at 2 s, eggs at 18 s). Anything but 1 shows "TEST" on the title.
 export const TESTING: { readonly unlockScale: number } = {
-  unlockScale: 0.2,
+  unlockScale: 1,
 };
 
 // Test builds only: a frame slower than this counts as a lag spike, shown on game over
@@ -172,15 +175,22 @@ export const HITCH = {
   window: 0.15, // s: an object that entered this recently gets the blame
 } as const;
 
-// New threats and toys arrive one at a time, so every run reveals more as it goes.
+// New threats and toys arrive one at a time, so every run reveals more as it goes. Everything is
+// in by 2:15, so a good 3-minute run gets 45 s of the full mix.
 export const UNLOCK = {
   stars: 10, // seconds into a run
   bouncers: 25,
-  divers: 45,
-  eggLayers: 90,
-  blackHoles: 120,
-  debris: 150,
-  comets: 180,
+  divers: 40,
+  eggLayers: 60,
+  debris: 85,
+  blackHoles: 110,
+  comets: 135,
+} as const;
+
+// Black holes, comets and debris never overlap: after one is gone there's a breather before the
+// next, and their spawn timers only run during those clear stretches.
+export const HAZARDS = {
+  gap: 3, // s of quiet after one ends before another can start
 } as const;
 
 export const UNLOCK_NAMES: Record<keyof typeof UNLOCK, string> = {
@@ -298,15 +308,14 @@ export const DIVER = {
 
 // Late chickens carry an egg and drop it over the play area.
 export const EGG_DROP = {
-  layerChance: 0.35, // share of chickens that carry an egg once unlocked
+  layerChance: 0.17, // share of chickens that carry an egg once unlocked: about 7 eggs a minute
   delayMin: 0.15, // s on screen before dropping
   delayMax: 0.6,
   lastChance: 6, // px above the rocket's band where a carrier drops its egg regardless
   fallSpeed: 70,
   w: 4,
   h: 5,
-  reverseChance: 0.45, // orange egg: reversed controls
-  goldenChance: 0.1, // golden egg: a prize
+  goldenChance: 0.15, // golden egg: a prize; the rest are yolk splats
   goldenPoints: 200,
   goldenPowerChance: 0.5, // otherwise a random power-up
   goldenBlinkFrames: 6,

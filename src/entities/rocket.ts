@@ -17,8 +17,6 @@ const START_X = (VIEW.w - ROCKET.w) / 2;
 export class Rocket {
   x = START_X;
   y: number = ROCKET.startY;
-  // When true, left and right swap (orange egg).
-  reversed = false;
   // Share of normal speed; below 1 while dazed by a chicken.
   speedScale = 1;
   // Px offset of the target toward a black hole, set by the game every frame.
@@ -35,7 +33,6 @@ export class Rocket {
     this.touchTime = Infinity;
     this.x = START_X;
     this.y = ROCKET.startY;
-    this.reversed = false;
     this.speedScale = 1;
   }
 
@@ -44,8 +41,7 @@ export class Rocket {
     this.pushX *= Math.exp(-dt / DEBRIS.pushDecay);
     if (input.pointerX !== null && input.pointerY !== null) {
       this.touchTime = this.touchTime === Infinity ? 0 : this.touchTime + dt;
-      const fingerX = this.reversed ? VIEW.w - input.pointerX : input.pointerX;
-      const tx = fingerX - ROCKET.w / 2 + this.pullX + this.pushX;
+      const tx = input.pointerX - ROCKET.w / 2 + this.pullX + this.pushX;
       const ty = input.pointerY - ROCKET.fingerOffset - ROCKET.h / 2 + this.pullY;
       // Frame-rate independent ease toward the finger, capped at max speed in any direction.
       const ease = 1 - Math.pow(1 - ROCKET.follow * scale, dt * 60);
@@ -60,8 +56,7 @@ export class Rocket {
       this.y += dy * k;
     } else {
       this.touchTime = Infinity;
-      const dir = this.reversed ? -input.keyDir : input.keyDir;
-      this.x += dir * ROCKET.keySpeed * scale * dt;
+      this.x += input.keyDir * ROCKET.keySpeed * scale * dt;
       this.y += input.keyDirY * ROCKET.keySpeed * scale * dt;
       // Without a finger holding it, the rocket drifts into a black hole's pull.
       this.x += this.pullX * BLACK_HOLE.driftRate * dt;

@@ -6,14 +6,16 @@ interface Popup {
   x: number;
   y: number;
   age: number;
+  color: string;
+  life: number; // s on screen
 }
 
-// Floating score text: rises, then blinks out.
+// Floating text: rises, then blinks out. Cream for good news, orange for a new threat.
 export class Popups {
   private list: Popup[] = [];
 
-  add(text: string, x: number, y: number): void {
-    this.list.push({ text, x, y, age: 0 });
+  add(text: string, x: number, y: number, color: string = PALETTE.rocket, life: number = POPUP.duration): void {
+    this.list.push({ text, x, y, age: 0, color, life });
   }
 
   clear(): void {
@@ -22,19 +24,20 @@ export class Popups {
 
   update(dt: number): void {
     for (const p of this.list) p.age += dt;
-    this.list = this.list.filter((p) => p.age < POPUP.duration);
+    this.list = this.list.filter((p) => p.age < p.life);
   }
 
   render(ctx: CanvasRenderingContext2D): void {
     ctx.font = HUD.font;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'alphabetic';
-    ctx.fillStyle = PALETTE.detail;
     for (const p of this.list) {
-      const k = p.age / POPUP.duration;
+      ctx.fillStyle = p.color;
+      const k = p.age / p.life;
       if (k > 0.6 && Math.floor(p.age * 15) % 2) continue;
       const w = ctx.measureText(p.text).width;
       const x = Math.max(0, Math.min(VIEW.w - w, p.x));
+      // Long-lived popups (ranks) rise the same distance, just slower.
       ctx.fillText(p.text, Math.round(x), snap(p.y - POPUP.rise * k));
     }
   }
