@@ -20,6 +20,7 @@ export type Sfx =
   | 'swallow'
   | 'comet'
   | 'rank'
+  | 'lightSpeed'
   | 'clank'
   | 'star'
   | 'trail'
@@ -135,7 +136,8 @@ export class Sound {
     this.play('blip');
   }
 
-  // n: for 'star', how many stars of this trail were taken before it (raises the pitch).
+  // n: for 'star', how many stars of this trail were taken before it; for 'nearMiss', the streak
+  // so far. Both raise the pitch.
   play(name: Sfx, n = 0): void {
     if (!this.ctx || this.muted) return;
     this.lastPlayed.name = name;
@@ -148,10 +150,12 @@ export class Sound {
         this.tone('square', 880, 880, 0.06, 0.1);
         this.tone('square', 880, 880, 0.06, 0.1, 0.12);
         break;
-      case 'nearMiss':
-        this.tone('square', 660, 1320, 0.08, 0.1);
-        this.tone('square', 1320, 1760, 0.08, 0.08, 0.06);
+      case 'nearMiss': {
+        const up = Math.pow(2, n / 4); // a major third per step, so a streak is heard building
+        this.tone('square', 660 * up, 1320 * up, 0.08, 0.1);
+        this.tone('square', 1320 * up, 1760 * up, 0.08, 0.08, 0.06);
         break;
+      }
       case 'chicken':
         this.tone('square', 950, 500, 0.08, 0.12);
         this.tone('square', 1050, 420, 0.12, 0.12, 0.08);
@@ -232,6 +236,12 @@ export class Sound {
         // A short rising fanfare, a step up from the unlock chime.
         [72, 76, 79, 84].forEach((note, i) => this.tone('square', hz(note), hz(note), 0.09, 0.08, i * 0.07));
         this.tone('triangle', hz(88), hz(88), 0.35, 0.18, 0.28);
+        break;
+      case 'lightSpeed':
+        // A long climb with a rush of air behind it.
+        this.tone('square', 200, 3200, 0.7, 0.09);
+        this.tone('triangle', 400, 6400, 0.7, 0.15, 0.05);
+        this.noise(0.9, 0.2, 800, 7000);
         break;
       case 'announce':
         this.tone('square', hz(76), hz(76), 0.08, 0.09);

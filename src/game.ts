@@ -13,6 +13,7 @@ import {
   EGG_DROP,
   HAZARDS,
   HITCH,
+  LIGHT_SPEED,
   LIVES,
   MUTE_BUTTON,
   NEAR_MISS,
@@ -26,6 +27,7 @@ import {
   STAR_TRAIL,
   TESTING,
   UNLOCK,
+  UNLOCK_CALLOUT,
   UNLOCK_NAMES,
   VIEW,
   type PowerKind,
@@ -51,6 +53,7 @@ import { boxesOverlap, circleHitsBox } from './systems/collision';
 import { sampleDifficulty } from './systems/difficulty';
 import { DiverSpawner, FlockSpawner } from './systems/flocks';
 import { CometSpawner, DebrisSpawner } from './systems/hazards';
+import { Noodles } from './systems/noodles';
 import { Particles } from './systems/particles';
 import { PickupSpawner } from './systems/pickups';
 import { Popups } from './systems/popups';
@@ -99,6 +102,8 @@ export class Game {
   private lastEnteredAt = -Infinity;
 
   private ranked = 0; // ranks called out this run
+  private streak = 0; // near misses in a row, toward light speed
+  private warpTimer = 0; // s of light speed left
 
   private readonly announced = new Set<keyof typeof UNLOCK>();
 
@@ -126,6 +131,7 @@ export class Game {
   private readonly starTrails = new StarTrails();
   private readonly yolk = new Yolk();
   private readonly particles = new Particles();
+  private readonly noodles = new Noodles();
   private readonly popups = new Popups();
   readonly shake = new Shake();
 
@@ -150,6 +156,8 @@ export class Game {
     this.timeTimer = 0;
     this.announced.clear();
     this.ranked = 0;
+    this.streak = 0;
+    this.warpTimer = 0;
     this.worstHitch = null;
     this.lastEnteredAt = -Infinity;
     this.rocket.reset();
@@ -174,6 +182,7 @@ export class Game {
     this.starTrails.reset();
     this.yolk.clear();
     this.particles.clear();
+    this.noodles.clear();
     this.popups.clear();
     this.shake.clear();
     this.sound.play('start');
@@ -195,9 +204,11 @@ export class Game {
     // TIME slows the world; the rocket, score and timers keep real time.
     const wdt = this.timeTimer > 0 ? dt * POWERUP.timeFactor : dt;
     const playing = this.state === 'playing';
-    this.stars.update(wdt, this.state === 'title' ? 0.25 : 1);
+    this.warpTimer = Math.max(0, this.warpTimer - dt);
+    this.stars.update(wdt, (this.state === 'title' ? 0.25 : 1) * (1 + this.warp * LIGHT_SPEED.speedUp));
     this.shake.update(dt);
     this.particles.update(dt);
+    this.noodles.update(dt);
     this.popups.update(dt);
     this.yolk.update(dt);
     this.wobbleTimer = Math.max(0, this.wobbleTimer - dt);
@@ -227,21 +238,12 @@ export class Game {
       this.updatePowerups(dt);
       this.applyPull();
       this.rocket.update(dt, this.input);
-      const d = sampleDifficulty(this.time);
-      const rocks = this.asteroidSpawner.update(wdt, d, this.asteroids);
-      if (rocks.length) this.sound.play('warning');
-      this.asteroids.push(...rocks);
-      const eggLayers = this.unlocked('eggLayers');
-      this.chickens.push(
-        ...this.flockSpawner.update(wdt, d, this.rocket.x, this.rocket.y, this.unlocked('bouncers'), eggLayers),
-      );
-      if (this.unlocked('divers')) {
-        const diver = this.diverSpawner.update(wdt, eggLayers);
-        if (diver) this.chickens.push(diver);
+      // Nothing new arrives at light speed; with the screen cleared, nothing can hit the rocket.
+      if (this.warpTimer === 0) this.spawnThreats(wdt);
+      if (this.warpTimer === 0) {
+        const pickup = this.pickupSpawner.update(wdt, this.needsClear, this.asteroids);
+        if (pickup) this.pickups.push(pickup);
       }
-      if (this.hazardsClear(wdt)) this.spawnHazard(wdt);
-      const pickup = this.pickupSpawner.update(wdt, this.needsClear, this.asteroids);
-      if (pickup) this.pickups.push(pickup);
     }
 
     for (const a of this.asteroids) a.update(wdt);
@@ -281,6 +283,7 @@ export class Game {
       if (this.state === 'playing') this.checkComets();
       if (this.state === 'playing') this.checkDebris();
       if (this.state === 'playing') this.peel(dt);
+      if (this.state === 'playing' && this.streak >= LIGHT_SPEED.streak) this.lightSpeed();
     }
     this.asteroids = this.asteroids.filter((a) => !a.dead);
     this.chickens = this.chickens.filter((c) => !c.dead);
@@ -299,6 +302,27 @@ export class Game {
     }
 
     this.sound.update(this.musicTempo);
+  }
+
+  private spawnThreats(wdt: number): void {
+    const d = sampleDifficulty(this.time);
+    const rocks = this.asteroidSpawner.update(wdt, d, this.asteroids);
+    if (rocks.length) this.sound.play('warning');
+    this.asteroids.push(...rocks);
+    const eggLayers = this.unlocked('eggLayers');
+    this.chickens.push(
+      ...this.flockSpawner.update(wdt, d, this.rocket.x, this.rocket.y, this.unlocked('bouncers'), eggLayers),
+    );
+    if (this.unlocked('divers')) {
+      const diver = this.diverSpawner.update(wdt, eggLayers);
+      if (diver) this.chickens.push(diver);
+    }
+    if (this.hazardsClear(wdt)) this.spawnHazard(wdt);
+  }
+
+  // 0–1: swells in and back out over the light-speed moment.
+  private get warp(): number {
+    return Math.sin((Math.PI * this.warpTimer) / LIGHT_SPEED.time);
   }
 
   // Music speeds up as the run gets harder and drops to half speed during TIME.
@@ -421,11 +445,11 @@ export class Game {
 
   // Every 1000 points: the points in orange, the rank name in cream under it.
   private announceRank(): void {
-    const rank = Math.min(RANKS.names.length, Math.floor(this.score / RANKS.every));
+    const rank = Math.floor(this.score / RANKS.every);
     if (rank <= this.ranked) return;
     this.ranked = rank;
     const points = String(rank * RANKS.every);
-    const name = RANKS.names[rank - 1];
+    const name = RANKS.names[Math.min(rank, RANKS.names.length) - 1];
     this.popups.add(points, VIEW.w / 2 - points.length * 4, RANKS.y, PALETTE.detail, RANKS.life);
     this.popups.add(name, VIEW.w / 2 - name.length * 4, RANKS.y + 10, PALETTE.rocket, RANKS.life);
     this.sound.play('rank');
@@ -437,9 +461,11 @@ export class Game {
     for (const key of Object.keys(UNLOCK) as (keyof typeof UNLOCK)[]) {
       if (this.announced.has(key) || !this.unlocked(key)) continue;
       this.announced.add(key);
-      const name = UNLOCK_NAMES[key];
       // Stars are a reward; everything else that unlocks is a new threat.
-      this.popups.add(name, VIEW.w / 2 - name.length * 4, 64, key === 'stars' ? PALETTE.rocket : PALETTE.detail);
+      const color = key === 'stars' ? PALETTE.rocket : PALETTE.detail;
+      UNLOCK_NAMES[key].forEach((line, i) => {
+        this.popups.add(line, VIEW.w / 2 - line.length * 4, UNLOCK_CALLOUT.y + i * 10, color, UNLOCK_CALLOUT.life);
+      });
       this.sound.play('announce');
     }
   }
@@ -480,6 +506,8 @@ export class Game {
   private checkAsteroids(): void {
     const box = this.rocket.hitbox;
     const rocketMidY = this.rocket.y + ROCKET.h / 2;
+    let paid = false;
+    let wide = false;
     for (const a of this.asteroids) {
       if (a.phase !== 'falling') continue;
       const cy = a.centerY;
@@ -499,9 +527,16 @@ export class Game {
       const passed = cy - ASTEROID.hitRadius >= box.y + box.h;
       if (a.grazed && passed && !a.nearMissed) {
         a.nearMissed = true;
+        paid = true;
         this.nearMiss(a.cx < this.rocket.x + ROCKET.w / 2 ? -1 : 1);
       }
+      if (passed && !a.grazed && !a.wide) {
+        a.wide = true;
+        wide = true;
+      }
     }
+    // The two rocks of a pair pass together: grazing one is enough to keep the streak.
+    if (wide && !paid) this.streak = 0;
   }
 
   private checkChickens(): void {
@@ -602,6 +637,10 @@ export class Game {
     const my = this.rocket.y + ROCKET.h / 2;
     for (const c of this.comets) {
       if (c.phase !== 'flying') continue;
+      if (c.dead) {
+        if (!c.nearMissed) this.streak = 0; // left the screen without a graze
+        continue;
+      }
       if (circleHitsBox(c.x, c.y, COMET.hitRadius, box)) {
         if (this.shieldTimer > 0) {
           c.dead = true;
@@ -765,6 +804,7 @@ export class Game {
   // Something fatal hit the shield at (x, y): it shatters and the shield is used up.
   private popShield(x: number, y: number): void {
     this.shieldTimer = 0;
+    this.streak = 0;
     for (let i = 0; i < POWERUP.popSparks; i++) {
       const angle = (i / POWERUP.popSparks) * Math.PI * 2;
       const speed = rand(40, 100);
@@ -821,7 +861,8 @@ export class Game {
   // side: -1 when the asteroid passed on the left, 1 on the right.
   private nearMiss(side: number): void {
     this.score += NEAR_MISS.points;
-    this.sound.play('nearMiss');
+    this.sound.play('nearMiss', this.streak);
+    this.streak++;
     buzz('nearMiss');
     const sx = side < 0 ? this.rocket.x : this.rocket.x + ROCKET.w - 1;
     const sy = this.rocket.y + 6;
@@ -832,6 +873,63 @@ export class Game {
     // Popup sits on the side away from the asteroid.
     const px = side < 0 ? this.rocket.x + ROCKET.w + 1 : this.rocket.x - 25;
     this.popups.add(`+${NEAR_MISS.points}`, px, this.rocket.y - 2);
+  }
+
+  // Stretches every threat on screen into strands; ones still warning just vanish.
+  // Stars and golden eggs stay: they're rewards.
+  private spaghettify(): void {
+    const r = ASTEROID.radius;
+    for (const a of this.asteroids) {
+      a.dead = true;
+      if (a.phase === 'falling') this.noodles.add({ x: a.cx - r, y: a.centerY - r, w: r * 2 + 1, h: r * 2 + 1 }, PALETTE.detail);
+    }
+    for (const c of this.chickens) {
+      c.dead = true;
+      this.noodles.add(c.hitbox, PALETTE.rocket);
+    }
+    for (const e of this.droppedEggs) {
+      if (e.kind === 'golden') continue;
+      e.dead = true;
+      this.noodles.add(e.hitbox, PALETTE.rocket);
+    }
+    for (const d of this.debris) {
+      d.dead = true;
+      if (d.phase === 'flying') this.noodles.add(d.hitbox, PALETTE.rocket);
+    }
+    for (const c of this.comets) {
+      c.dead = true;
+      if (c.phase === 'flying') this.noodles.add({ x: c.x - 1, y: c.y - COMET.trail, w: 3, h: COMET.trail }, PALETTE.rocket);
+    }
+    for (const h of this.holes) {
+      h.dead = true;
+      const { diskRx: rx, diskRy: ry } = BLACK_HOLE;
+      this.noodles.add({ x: h.cx - rx, y: h.cy - ry, w: rx * 2 + 1, h: ry * 2 + 1 }, PALETTE.detail);
+    }
+    this.yolk.clear();
+  }
+
+  // A full streak: the stars stretch into lines, the screen clears and the bonus pays out.
+  private lightSpeed(): void {
+    this.streak = 0;
+    this.spaghettify();
+    // Power-ups on screen are yours, rather than left floating in the empty sky.
+    for (const p of this.pickups) {
+      if (p.dead || p.y + POWERUP.size <= HUD.playTop) continue;
+      p.dead = true;
+      this.collect(p.kind);
+    }
+    this.warpTimer = LIGHT_SPEED.time;
+    this.score += LIGHT_SPEED.points;
+    const lines: [string, string][] = [
+      [`+${LIGHT_SPEED.points}`, PALETTE.detail],
+      ['LIGHT', PALETTE.rocket],
+      ['SPEED', PALETTE.rocket],
+    ];
+    lines.forEach(([line, color], i) => {
+      this.popups.add(line, VIEW.w / 2 - line.length * 4, LIGHT_SPEED.y + i * 10, color, LIGHT_SPEED.life);
+    });
+    this.sound.play('lightSpeed');
+    buzz('shieldPop');
   }
 
   private die(cause: DeathCause, hole?: BlackHole): void {
@@ -886,7 +984,7 @@ export class Game {
   render(ctx: CanvasRenderingContext2D): void {
     ctx.fillStyle = PALETTE.bg;
     ctx.fillRect(0, 0, VIEW.w, VIEW.h);
-    this.stars.render(ctx, this.frame);
+    this.stars.render(ctx, this.frame, this.warp);
     if (this.state === 'title') {
       renderTitle(ctx, this.screenTime, this.best, this.sound.muted);
       return;
@@ -900,6 +998,7 @@ export class Game {
     this.starTrails.render(ctx, this.frame);
     for (const e of this.droppedEggs) e.render(ctx);
     for (const c of this.chickens) c.render(ctx);
+    this.noodles.render(ctx);
     if (this.state === 'playing' || this.state === 'doomed') this.renderRocket(ctx);
     this.particles.render(ctx);
     this.yolk.render(ctx);

@@ -8,6 +8,7 @@ const HEART_OFF_INVERTED = makeSprite(HEART_EMPTY, { X: PALETTE.bg });
 const FEATHER = makeSprite(FEATHER_MAP, { X: PALETTE.detail });
 
 // One row, left to right: pause 2–7, score 11–41, effect icon 43–49, hearts 52–68.
+// A five-digit score runs to 50, over the icon's spot.
 const PAUSE_X = 2; // two 2 px bars with a 2 px gap
 const SCORE_X = 11;
 const ICON_X = 43;
@@ -39,13 +40,14 @@ export function renderHud(ctx: CanvasRenderingContext2D, s: HudState): void {
   ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = text;
   const shown = Math.min(SCORE.maxShown, Math.floor(s.score));
-  ctx.fillText(String(shown).padStart(4, '0'), SCORE_X, 12);
+  const digits = String(shown).padStart(4, '0');
+  ctx.fillText(digits, SCORE_X, 12);
   // The whole bar is the pause button; two bars, as tall as the hearts, mark it.
   ctx.fillRect(PAUSE_X, ICON_Y, 2, 5);
   ctx.fillRect(PAUSE_X + 4, ICON_Y, 2, 5);
 
-  // Blinking feather while dazed.
-  if (affected && Math.floor(s.frame / 8) % 2 === 0) ctx.drawImage(FEATHER, ICON_X, ICON_Y - 1);
+  // Blinking feather while dazed, if the score leaves room (the bar still inverts).
+  if (affected && digits.length <= 4 && Math.floor(s.frame / 8) % 2 === 0) ctx.drawImage(FEATHER, ICON_X, ICON_Y - 1);
 
   if (s.heartsBlink && Math.floor(s.frame / 4) % 2) return;
   const empty = affected ? HEART_OFF_INVERTED : HEART_OFF;

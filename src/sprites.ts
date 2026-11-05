@@ -52,6 +52,26 @@ export const WARNING_MAP: SpriteMap = ['XXX', 'XXX', 'XXX', 'XXX', 'XXX', '.X.',
 
 export const DETAIL_COLORS: ColorKey = { X: PALETTE.detail };
 
+// Adds a 1 px 'N' border around every X in a map (the map grows by 1 px on each side).
+function outline(map: SpriteMap): SpriteMap {
+  const h = map.length + 2;
+  const w = map[0].length + 2;
+  const at = (x: number, y: number) => map[y - 1]?.[x - 1] === 'X';
+  return Array.from({ length: h }, (_, y) =>
+    Array.from({ length: w }, (_, x) => {
+      if (at(x, y)) return 'X';
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (at(x + dx, y + dy)) return 'N';
+      return '.';
+    }).join(''),
+  );
+}
+
+// The "!" for incoming asteroids and comets, outlined in navy so it stands out over Mars,
+// yolk or anything else orange behind it. 5 x 11 including the outline.
+export function makeWarning(): HTMLCanvasElement {
+  return makeSprite(outline(WARNING_MAP), { X: PALETTE.detail, N: PALETTE.bg });
+}
+
 // Builds a lumpy, cratered asteroid. The same seed always gives the same rock.
 export function makeAsteroid(r: number, seed: number): HTMLCanvasElement {
   let s = seed;

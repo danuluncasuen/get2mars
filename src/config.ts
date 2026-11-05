@@ -29,6 +29,10 @@ export const ROCKET = {
   follow: 0.35, // fraction of the gap to the finger closed per 1/60 s
   keySpeed: 140, // px/s with the arrow keys
   dazedFlameFrames: 3, // flame sputters this fast while dazed
+  // Banking: the rocket leans into sideways moves, one step past bankSlow px/s, two past bankFast.
+  bankSlow: 35,
+  bankFast: 110,
+  bankSmoothing: 12, // per s: how fast the measured sideways speed follows the real one
   hitboxInset: 1,
   flameToggleFrames: 4,
 } as const;
@@ -76,7 +80,7 @@ export const NEAR_MISS = {
 
 export const SCORE = {
   perSecond: 10,
-  maxShown: 9999,
+  maxShown: 99999, // the HUD fits five digits
 } as const;
 
 export interface DifficultyRow {
@@ -113,9 +117,10 @@ export const POPUP = {
 
 // Every 1000 points a rank is called out mid-screen. Names fit the 72 px screen (9 letters max).
 // A 3-minute run lands around 2000–3500, so the first ranks come quickly and the rest are a chase.
+// Past the last name the points keep being called out under it.
 export const RANKS = {
   every: 1000,
-  names: ['CADET', 'PILOT', 'ACE', 'CAPTAIN', 'COMMANDER', 'ADMIRAL', 'LEGEND', 'STARBORN', 'MARTIAN'],
+  names: ['CADET', 'PILOT', 'ACE', 'CAPTAIN', 'COMMANDER', 'ADMIRAL', 'LEGEND', 'STARBORN', 'MARTIAN', 'MARS BOSS'],
   y: 46, // baseline of the points line; the name sits under it
   life: 1.6, // s on screen
 } as const;
@@ -193,15 +198,43 @@ export const HAZARDS = {
   gap: 3, // s of quiet after one ends before another can start
 } as const;
 
-export const UNLOCK_NAMES: Record<keyof typeof UNLOCK, string> = {
-  stars: 'STARS',
-  bouncers: 'BOUNCE',
-  divers: 'DIVE',
-  eggLayers: 'EGGS',
-  blackHoles: 'GRAVITY',
-  debris: 'DEBRIS',
-  comets: 'COMETS',
+// Two short lines (8 letters at most) that say what's coming, shown mid-screen.
+export const UNLOCK_NAMES: Record<keyof typeof UNLOCK, readonly [string, string]> = {
+  stars: ['GRAB', 'STARS'],
+  bouncers: ['BOUNCING', 'CHICKENS'],
+  divers: ['DIVING', 'CHICKENS'],
+  eggLayers: ['FALLING', 'EGGS'],
+  blackHoles: ['BLACK', 'HOLES'],
+  debris: ['PUSHY', 'DEBRIS'],
+  comets: ['FAST', 'COMETS'],
 };
+
+export const UNLOCK_CALLOUT = {
+  y: 58, // baseline of the first line; the second sits under it
+  life: 1.4, // s on screen, long enough to read both lines
+} as const;
+
+// Light speed: near misses on this many asteroids or comets in a row, with none passing wide.
+// The stars stretch into lines, every threat on screen is spaghettified, nothing new arrives
+// until it's over (so nothing can hit you), and the run pays a bonus.
+export const LIGHT_SPEED = {
+  streak: 5,
+  points: 200,
+  time: 1.2, // s the stars stay stretched
+  speedUp: 7, // extra star speed at the peak, as a multiple of normal
+  stretch: 14, // px a near star's line reaches at the peak; far ones half that
+  y: 38, // baseline of the points line; the words sit under it
+  life: 1.4, // s on screen
+  noodles: 120, // most strands stretching at once
+  noodleStep: 3, // px between strands: every column side by side reads as a solid wall
+  pinch: 0.7, // share of the way each strand closes in on the thing's center…
+  pinchTime: 0.2, // …over this many s
+  topSpeedMin: 20, // px/s the top of a strand starts at
+  topSpeedMax: 70,
+  bottomSpeedMin: 180, // px/s the bottom end runs ahead at
+  bottomSpeedMax: 320,
+  noodleAccel: 320, // px/s²: the top catches up, so the strand drains off the bottom
+} as const;
 
 // Comets: a short warning at the screen edge, then a fast streak aimed where the rocket was.
 // Fatal like an asteroid; the shield pops it.
@@ -236,8 +269,8 @@ export const DEBRIS = {
 // A black hole opens at one side of the rocket's band, pulls the rocket toward it, then
 // closes. Flying into its core is a crash; a shield collapses it instead.
 export const BLACK_HOLE = {
-  intervalMin: 14, // s between holes once unlocked
-  intervalMax: 20,
+  intervalMin: 8, // s of clear sky between holes once unlocked: about one every 30 s
+  intervalMax: 12,
   openTime: 0.8, // grows in (harmless, the warning)
   lifeTime: 5, // fully open
   closeTime: 0.6,
@@ -268,7 +301,7 @@ export const BLACK_HOLE = {
   chickenPull: 1500, // px/s² at the center, fading to 0 at range
   chickenDrag: 5, // per s at the center: bleeds speed so chickens spiral in instead of slingshotting
   swallowRadius: 7, // px from the center to the chicken's center
-  chickenPoints: 200,
+  chickenPoints: 100,
   chickenBits: 14, // pixels it streams into the core as
 } as const;
 
@@ -316,7 +349,7 @@ export const EGG_DROP = {
   w: 4,
   h: 5,
   goldenChance: 0.15, // golden egg: a prize; the rest are yolk splats
-  goldenPoints: 200,
+  goldenPoints: 100,
   goldenPowerChance: 0.5, // otherwise a random power-up
   goldenBlinkFrames: 6,
   breakBits: 8,
@@ -350,7 +383,7 @@ export const MARS = {
   cx: 6, // center, mostly off screen and behind the HUD; top-left keeps the mute button clear
   cy: 8,
   radiusStart: 6, // hidden behind the HUD at first
-  radiusMax: 26, // size cap: it never takes over the screen
+  radiusMax: 20, // size cap: 26 reached far enough down to hide asteroid warnings in the left lanes
   reachTime: 180, // s to grow to full size; the run (and the score) keeps going after
 } as const;
 

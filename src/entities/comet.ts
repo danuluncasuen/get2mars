@@ -1,9 +1,9 @@
 import { ASTEROID, COMET, HUD, PALETTE, VIEW } from '../config';
 import { snap } from '../pixel';
-import { DETAIL_COLORS, makeSprite, WARNING_MAP } from '../sprites';
+import { makeWarning } from '../sprites';
 
 // The same "!" asteroids use, so every incoming threat reads the same way.
-const WARNING = makeSprite(WARNING_MAP, DETAIL_COLORS);
+const WARNING = makeWarning();
 
 // Warns at the left or right edge, then streaks across, aimed where the rocket was.
 export class Comet {
@@ -55,8 +55,8 @@ export class Comet {
       const urgent = this.elapsed > COMET.warnTime * ASTEROID.urgentAt;
       const blink = urgent ? ASTEROID.blinkFramesUrgent : ASTEROID.blinkFrames;
       if (Math.floor((this.elapsed * 60) / blink) % 2) return;
-      const x = this.from < 0 ? 1 : VIEW.w - 1 - WARNING.width;
-      const y = Math.max(HUD.playTop + 2, Math.round(this.y) - Math.floor(WARNING.height / 2));
+      const x = this.from < 0 ? 0 : VIEW.w - WARNING.width;
+      const y = Math.max(HUD.playTop + 1, Math.round(this.y) - Math.floor(WARNING.height / 2));
       ctx.drawImage(WARNING, x, y);
       return;
     }

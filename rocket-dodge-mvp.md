@@ -142,7 +142,7 @@ XXXX      X..X
 
 ### 2.5 Background
 
-- 26 orange stars at random positions, in four shapes: a single dot, a 2 px vertical streak, a small x (3 × 3 corners and center), and a dotted sparkle (center plus four pixels 2 px out). Never the 3 × 3 plus: in cream, that's the collectible star.
+- 26 orange stars at random positions, in five shapes: a single dot, a 2 px vertical streak, a small x (3 × 3 corners and center), a dotted sparkle (center plus four pixels 2 px out), and a 3 × 3 plus that echoes the collectible star. Background stars are never cream: a cream plus was tried and got mistaken for a collectible. The plus only appears in the far layer.
 - Two parallax layers: far stars scroll at 30 px/s and are nearly all dots; near stars scroll at 60 px/s and are mostly the bigger shapes, so size and speed both read as depth.
 - A few stars twinkle for life: dots skip a few frames, bigger shapes shrink to their center pixel.
 
@@ -293,7 +293,7 @@ The first asteroid comes 2 s into a run and the first chicken at 4 s, so players
 
 ## 9. Scoring and saving
 
-- **Distance:** +10 points per second survived (show as an integer, 4 digits, padded with zeros, max 9999 shown).
+- **Distance:** +10 points per second survived (show as an integer, padded to 4 digits with zeros, 5 digits past 9999, max 99999 shown; while the score has 5 digits the HUD feather is left out to make room).
 - **Near miss:** +50 when an asteroid overlaps the rocket's rows (y 112–124) and the horizontal gap between the asteroid's edge and the rocket's hitbox is ≤ 6 px, without touching (the drawn rock reaches about 2 px past its hit circle, so that is a visible gap of up to about 4 px). Max once per asteroid.
 - **Best score:** saved in `localStorage` under `get2mars.best`. Wrap reads and writes in try/catch, and fall back to 0.
 
@@ -437,17 +437,17 @@ Put every number from sections 4–9 in `config.ts`. Optional: a `?debug` URL fl
 
 ## 15. v3: variety (built)
 
-New things unlock one at a time during a run, each announced with a popup in the middle of the screen and a two-note chime (cream for STARS, orange for threats). Everything is in by 2:15: reaching 3 minutes is the bar for a good player, and that leaves 45 s of the full mix.
+New things unlock one at a time during a run, each announced with a two-line popup in the middle of the screen that says what's coming (8 letters per line at most, 1.4 s) and a two-note chime (cream for stars, orange for threats). Everything is in by 2:15: reaching 3 minutes is the bar for a good player, and that leaves 45 s of the full mix.
 
 | Time | Unlock | Popup |
 |---|---|---|
-| 0:10 | Star trails | STARS |
-| 0:25 | Bouncing chickens | BOUNCE |
-| 0:40 | Diving chickens | DIVE |
-| 1:00 | Egg-laying chickens | EGGS |
-| 1:25 | Satellite debris | DEBRIS |
-| 1:50 | Black holes | GRAVITY |
-| 2:15 | Comets | COMETS |
+| 0:10 | Star trails | GRAB STARS |
+| 0:25 | Bouncing chickens | BOUNCING CHICKENS |
+| 0:40 | Diving chickens | DIVING CHICKENS |
+| 1:00 | Egg-laying chickens | FALLING EGGS |
+| 1:25 | Satellite debris | PUSHY DEBRIS |
+| 1:50 | Black holes | BLACK HOLES |
+| 2:15 | Comets | FAST COMETS |
 
 - **One special hazard at a time:** black holes, comets and debris never overlap. After one is gone there are 3 s of quiet before the next, and their spawn timers only run during those clear stretches, so their rates don't pile up.
 
@@ -456,9 +456,20 @@ New things unlock one at a time during a run, each announced with a popup in the
 - Power-up boxes stay cream; the glyph blinks orange/navy.
 - A strict "orange hurts, cream helps" pass (orange yolk eggs, all-orange comets and debris) was tried and reverted: cream eggs and the cream comet head and debris look more natural.
 
+### Warnings
+- The "!" for asteroids and comets has a 1 px navy outline (5 × 11 in all), so it stays readable over Mars, yolk or anything orange behind it.
+
+### Feel: banking
+- **Banking:** the rocket leans into sideways moves. Past 35 px/s (smoothed) the top half shifts 1 px into the move; past 110 px/s the sprite shears 2 px (nose 2, middle 1, base 0). The flame's tip trails 1 px the other way. Hitbox unchanged.
+- Hit-stop (freezing the game for a few frames on impacts) was tried and removed: it read as a freeze, not a feature.
+
+### Light speed
+
+Near misses on 5 asteroids or comets in a row pay +200 and call out LIGHT SPEED: the background stars stretch into lines and rush past for 1.2 s, with a climbing whoosh. Every threat on screen (asteroids, chickens, yolk eggs, debris, comets, black holes) is spaghettified: it breaks into thin strands that pinch toward its center and stretch down, draining off the bottom. Warnings vanish and any yolk on screen clears. Any power-up on screen is granted on the spot. Nothing new spawns until it's over, so nothing can hit the rocket. Stars and golden eggs stay. An asteroid or comet that passes without a graze, or pops the shield, resets the streak, except that grazing one rock of a pair keeps it. The near-miss sound climbs with each step, which is the only sign of the streak building.
+
 ### Ranks
 - Every 1000 points a rank is called out mid-screen for 1.6 s: the points in orange (y 46), the name in cream under it, with a short rising fanfare and a light buzz.
-- 1000 CADET, 2000 PILOT, 3000 ACE, 4000 CAPTAIN, 5000 COMMANDER, 6000 ADMIRAL, 7000 LEGEND, 8000 STARBORN, 9000 MARTIAN. Names are 9 letters at most to fit the screen. A 3-minute run lands around 2000–3500.
+- 1000 CADET, 2000 PILOT, 3000 ACE, 4000 CAPTAIN, 5000 COMMANDER, 6000 ADMIRAL, 7000 LEGEND, 8000 STARBORN, 9000 MARTIAN, 10000 MARS BOSS. Past that the points keep being called out under MARS BOSS. Names are 9 letters at most to fit the screen. A 3-minute run lands around 2000–3500.
 
 ### Star trails
 - Every 6–10 s, a line of 6–9 cream "+" stars (3 × 3) falls at 55 px/s, swaying side to side (sine curve, 10–22 px wide, kept on screen). Stars twinkle down to one pixel now and then.
@@ -474,27 +485,27 @@ New things unlock one at a time during a run, each announced with a popup in the
 ### Egg-laying chickens and falling eggs
 - 17% of chickens (divers included) carry an egg. They drop it shortly after appearing over the play area, or at the latest just above the rocket's band. Eggs fall straight down at 70 px/s. About 7 a minute late in a run.
 - **Cream egg (85%):** yolk splat. A lumpy cream blob with an orange yolk (radius ~15 px) covers part of the screen (center x 14–58, y 40–92) for 3 s, drips, and dissolves over the last second, edges first.
-- **Golden egg (15%, flashes cream/orange):** +200, or a free shield or TIME (50/50), with a jingle.
+- **Golden egg (15%, flashes cream/orange):** +100, or a free shield or TIME (50/50), with a jingle.
 - The shield breaks yolk eggs harmlessly. Golden eggs always pay out.
 - (An orange reversed-controls egg used to be a third kind; it was removed because the sudden swap felt like a bug.)
 - Falling eggs are separate from the HUD hearts.
 
-### Black hole (unlocks at 1:50, as GRAVITY)
-- Every 14–20 s a black hole opens at the left or right edge of the rocket's band (y 84–116), on the side away from the rocket. Only one at a time.
+### Black hole (unlocks at 1:50, as BLACK HOLES)
+- About every 30 s (8–12 s of clear sky, on top of each hole's own life and the 3 s breather) a black hole opens at the left or right edge of the rocket's band (y 84–116), on the side away from the rocket. Only one at a time.
 - It grows in over 0.8 s (harmless, the warning, with a deep swooping sound), stays open 5 s, and shrinks away over 0.6 s.
 - Look: a navy core (radius 4) with an orange rim, a flat ring of orange and cream dots spinning around it, and cream specks spiralling in.
 - Pull: within 40 px it drags the rocket off your finger toward its center, by up to 10 px, more the closer you get. Without a finger on the screen, the rocket drifts toward it.
 - Coming apart: within 22 px of the center (rocket center), the rocket starts losing pixels to the hole. They peel off the sprite and stream straight into the core, up to 60 a second at the core's edge. The rocket shivers a pixel either way, and the phone ticks faster as you get closer (every 0.35 s down to every 0.1 s).
-- **Knock a chicken in: +200.** A chicken bounced off the shield tumbles away, and an open hole drags tumbling chickens in, bleeding their speed so they spiral down instead of slingshotting past. One knocked in off the shield scores +200, with a popup by the hole. Knocks toward the hole land from about 30 px away. Chickens tumbling after a plain hit get swallowed too, but score nothing.
+- **Knock a chicken in: +100.** A chicken bounced off the shield tumbles away, and an open hole drags tumbling chickens in, bleeding their speed so they spiral down instead of slingshotting past. One knocked in off the shield scores +100, with a popup by the hole. Knocks toward the hole land from about 30 px away. Chickens tumbling after a plain hit get swallowed too, but score nothing.
 - Flying into the open core is a crash ("SUCKED IN"). Instead of exploding outward, every pixel of the rocket streams into the core over about 0.8 s, with a long sliding swoop instead of the crash. With a shield, the hole collapses instead and the shield is used up.
 
-### Comets (unlock at 2:15, as COMETS)
+### Comets (unlock at 2:15, as FAST COMETS)
 - Every 7–11 s. The same orange "!" as an asteroid's warning blinks at the left or right edge, at the height it comes in (y 20–60), for 0.7 s, speeding up toward the end like the asteroid one, with the same beep.
 - Then the comet streaks in at 150 px/s, **aimed where the rocket is at that moment** (always heading down), with a hissing sound. Sidestep after it launches.
 - Look: a small cream cross with a 14 px tail, solid orange near the head and thinning to a dotted cream line.
 - Fatal like an asteroid (hit radius 2), and the shield pops it. Passing within the near-miss margin pays +50, once it's clear.
 
-### Satellite debris (unlocks at 1:25, as DEBRIS)
+### Satellite debris (unlocks at 1:25, as PUSHY DEBRIS)
 - Every 6–10 s, a pair of small pieces (a broken 5×3 solar panel and a 3×3 hull chunk, cream with a blinking orange light) drifts sideways through the rocket's band at 55–75 px/s. The second piece trails 12 px behind and 9 px above or below.
 - An orange tick blinks on the edge they come in from for 0.6 s first.
 - Not fatal: a hit breaks the piece into sparks with a metal clank and a light buzz, and **shoves the rocket 14 px** the way it was drifting. The shove fades over about 0.35 s and the rocket eases back under your finger, but it can push you into something worse. The shield just knocks the pieces away.
@@ -504,7 +515,7 @@ New things unlock one at a time during a run, each announced with a popup in the
 ## 16. Mars on the horizon (built)
 
 - The game stays endless (it keeps the scoreboard meaningful). Mars shows progress instead of being a finish line.
-- Mars rises into the **top-left corner** from behind the HUD and the screen edge: center (6, 8), radius growing from 6 (hidden) to a cap of **26** over **180 s**, then staying. At full size it covers the corner down to about y 34, out of the middle lanes.
+- Mars rises into the **top-left corner** from behind the HUD and the screen edge: center (6, 8), radius growing from 6 (hidden) to a cap of **20** over **180 s**, then staying. At full size it covers the corner down to about y 28. (A cap of 26 reached far enough down to hide asteroid warnings in the left lanes.)
 - Drawn as a **50% orange/navy checker**, so it reads as far-off scenery. Solid orange stays reserved for things that hurt you. Craters are sparser patches (one pixel in four) and the lit rim on the lower-right edge is a cream checker.
 - It sat top-right at first, but there it hid the mute button on the game over screen.
 - The checker stays locked to the screen's pixel grid as the planet grows, so it never shimmers.

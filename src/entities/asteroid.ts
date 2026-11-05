@@ -1,9 +1,9 @@
 import { ASTEROID, HUD } from '../config';
-import { DETAIL_COLORS, makeAsteroid, makeSprite, WARNING_MAP } from '../sprites';
+import { makeAsteroid, makeWarning } from '../sprites';
 import { snap } from '../pixel';
 
 const SPRITES = ASTEROID.variants.map((seed) => makeAsteroid(ASTEROID.radius, seed));
-const WARNING = makeSprite(WARNING_MAP, DETAIL_COLORS);
+const WARNING = makeWarning();
 let nextVariant = 0;
 
 // Flashes a warning down its lane, then drops straight through it.
@@ -12,6 +12,7 @@ export class Asteroid {
   y: number = ASTEROID.spawnY; // top of the sprite
   grazed = false; // came within the near-miss margin
   nearMissed = false; // bonus already paid
+  wide = false; // went past without a graze
   dead = false;
   private elapsed = 0;
   private readonly sprite = SPRITES[nextVariant++ % SPRITES.length];
@@ -47,6 +48,6 @@ export class Asteroid {
     const urgent = this.elapsed > this.warnTime * ASTEROID.urgentAt;
     const blink = urgent ? ASTEROID.blinkFramesUrgent : ASTEROID.blinkFrames;
     if (Math.floor(f / blink) % 2) return;
-    ctx.drawImage(WARNING, Math.round(this.cx - WARNING.width / 2), HUD.playTop + 2);
+    ctx.drawImage(WARNING, Math.round(this.cx - WARNING.width / 2), HUD.playTop + 1);
   }
 }
